@@ -1,0 +1,14 @@
+name: AR_fNIRS_GUI
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy=1.24.4
+  - pandas=2.0.3
+  - opencv
+  - pip
+  - pip:
+      - mediapipe==0.10.9
+      - matplotlib==3.7.4
+      - pyqt5==5.15.10
