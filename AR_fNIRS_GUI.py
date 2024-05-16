@@ -824,8 +824,5 @@ if __name__ == "__main__":
 
     mainWin = MainWindow()
     mainWin.show()
-    ipython = get_ipython()
-    if ipython:
-        ipython.magic("gui qt5")  # This will use IPython's event loop integration for Qt5
-    else:
-        app.exec_()
+    app.exec_()
+        
