@@ -1,0 +1,7 @@
+numpy==1.24.4
+pandas==2.0.3
+opencv-python==4.9.0.80
+mediapipe==0.10.9
+matplotlib==3.7.4
+pyqt5==5.15.10
+jdata==0.5.3
