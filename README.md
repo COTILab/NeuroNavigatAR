@@ -7,6 +7,7 @@ AR_fNIRS is an augmented reality (AR) tool designed to visualize optode/electrod
 - [Installation](#installation)
   - [Clone the repository](#clone-the-repository)
   - [Environment Setup](#environment-setup)
+  - [Usage](#usage)
 - [Citation](#citation)
 
 ## Features
