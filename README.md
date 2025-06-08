@@ -1,13 +1,13 @@
-# AR_fNIRS - Augmented Reality Tool for Real-Time Optode/Electrode Placement
+# NeuroNavigatAR (NNAR) - Augmented Reality Tool for Real-Time Optode/Electrode Placement
 
-AR_fNIRS is an augmented reality (AR) tool designed to visualize optode/electrode positions based on the 10-20 (10-10, 10-5) system in real time. This tool assists users locating the sensor positions for neuroimaging setups.
+NeuroNavigatAR is an augmented reality (AR) tool designed to visualize optode/electrode positions based on the 10-20 (10-10, 10-5) system in real time. This tool assists users locating the sensor positions for neuroimaging setups.
 
 ## Table of Contents
 - [Features](#features)
 - [Installation](#installation)
   - [Clone the repository](#clone-the-repository)
   - [Environment Setup](#environment-setup)
-  - [Usage](#usage)
+- [Usage](#usage)
 - [Citation](#citation)
 
 ## Features
@@ -19,8 +19,8 @@ AR_fNIRS is an augmented reality (AR) tool designed to visualize optode/electrod
 
 ### Clone the repository
 ```bash
-git clone git@github.com:fanyuyen/AR_fNIRS.git
-cd AR_fNIRS
+git clone git@github.com:fanyuyen/NeuroNavigatAR.git
+cd NeuroNavigatAR
 ```
 
 ### Environment Setup
@@ -37,15 +37,15 @@ conda activate AR_fNIRS_GUI
 pip install -r requirements.txt
 ```
 
-### Usage
+## Usage
 You can execute the tool in one of the following ways:
 #### Option 1: Run the Python script
 ```bash
-python AR_fNIRS_GUI.py
+python NNAR_GUI.py
 ```
 #### Option 2: Use the Jupyter Notebook
 ```bash
-jupyter notebook AR_fNIRS_GUI.ipynb
+jupyter notebook NNAR_GUI.ipynb
 ```
 
 ## Citation
