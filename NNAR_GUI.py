@@ -34,6 +34,17 @@ import sys
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f0f0f0;
+            }
+            QPushButton {
+                background-color: none;
+                border: 1px solid #ccc;
+                padding: 5px;
+                border-radius: 4px;
+            }
+        """)
         self.setObjectName("MainWindow")
         # self.resize(1200, 600)
         self.centralwidget = QtWidgets.QWidget(self)
@@ -266,7 +277,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # pixmap.fill(QtGui.QColor('darkGray'))
         # self.label1.setPixmap(pixmap)
 
-        pixmap = QtGui.QPixmap("GUI_icon/logo_tmp.png")  # Load an image file
+        pixmap = QtGui.QPixmap("GUI_icon/NeuroNavigatAR_logo.png")  # Load an image file
         scaled_pixmap = pixmap.scaled(width, height, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
         self.label1.setPixmap(scaled_pixmap)
         
