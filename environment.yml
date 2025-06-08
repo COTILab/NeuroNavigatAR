@@ -1,4 +1,4 @@
-name: AR_fNIRS_GUI
+name: NeuroNavigatAR
 channels:
   - conda-forge
   - defaults
