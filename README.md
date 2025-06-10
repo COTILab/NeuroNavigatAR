@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="GUI_icon/NeuroNavigatAR_logo.png" alt="NNAR Logo" width="300"/>
+</p>
+
 # NeuroNavigatAR (NNAR) - Augmented Reality Tool for Real-Time Optode/Electrode Placement
 
 NeuroNavigatAR (NNAR) is an augmented reality (AR) tool designed to visualize optode/electrode positions based on the 10-20 (10-10, 10-5) system in real time. This tool assists users locating the sensor positions for neuroimaging setups.

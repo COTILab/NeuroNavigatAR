@@ -34,17 +34,6 @@ import sys
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f0f0;
-            }
-            QPushButton {
-                background-color: none;
-                border: 1px solid #ccc;
-                padding: 5px;
-                border-radius: 4px;
-            }
-        """)
         self.setObjectName("MainWindow")
         # self.resize(1200, 600)
         self.centralwidget = QtWidgets.QWidget(self)
