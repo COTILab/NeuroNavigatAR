@@ -231,7 +231,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setup_right_layout(self):
         # # Right side layout (Image Display)
-        right_layout = QtWidgets.QVBoxLayout(self.centralwidget)
+        right_layout = QtWidgets.QVBoxLayout()
         right_layout.setAlignment(QtCore.Qt.AlignCenter)
 
         # Image Display
@@ -267,7 +267,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.label1.setPixmap(pixmap)
 
         pixmap = QtGui.QPixmap("GUI_icon/NeuroNavigatAR_logo.png")  # Load an image file
-        scaled_pixmap = pixmap.scaled(width, height, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        scaled_pixmap = pixmap.scaled(int(width), int(height), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
         self.label1.setPixmap(scaled_pixmap)
         
     def resizeEvent(self, event):
