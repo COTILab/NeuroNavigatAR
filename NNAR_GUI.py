@@ -1,15 +1,16 @@
 import cv2
 import numpy as np
-import mediapipe as mp # Import mediapipe
+import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
 import jdata as jd
 import copy
 from PyQt5 import QtCore, QtGui, QtWidgets
+import scipy.io
 
 import sys
 sys.path.append('GUI_functions')
 
-from livefacemaskGUI import affinemap, reg1020, landmark2numpy, numpy2landmark, my_reg1020, convert_cv_qt, interpolate_datasets_dict, map_arrays_to_dict
+from nnar_utils import affinemap, reg1020, landmark2numpy, numpy2landmark, my_reg1020, convert_cv_qt, map_arrays_to_dict
 
 mp_drawing = mp.solutions.drawing_utils # Drawing helpers
 mp_holistic = mp.solutions.holistic # Mediapipe Solutions
@@ -17,7 +18,6 @@ atlas10_5 = jd.load('1020atlas/1020atlas_Colin27.json') # default
 atlas10_5_3points = jd.load('1020atlas/1020atlas_Colin27.json')
 atlas10_5_5points = jd.load('1020atlas/1020atlas_Colin27_5points.json') # default
 
-import scipy.io
 lpa_mat = scipy.io.loadmat('Trained model/x_lpa_all.mat')
 x_lpa = lpa_mat['x_lpa']
 rpa_mat = scipy.io.loadmat('Trained model/x_rpa_all.mat')
@@ -27,9 +27,6 @@ iz_mat = scipy.io.loadmat('Trained model/x_iz_all.mat')
 x_iz = iz_mat['x_iz']
 cz_mat = scipy.io.loadmat('Trained model/x_cz_all.mat')
 x_cz = cz_mat['x_cz']
-
-from PyQt5 import QtWidgets, QtCore, QtGui
-import sys
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -41,7 +38,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Create a main horizontal layout
         self.main_layout = QtWidgets.QHBoxLayout(self.centralwidget)
-        # self.main_layout = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self.centralwidget)
         
         self.setup_left_layout()
         self.setup_right_layout()
@@ -58,37 +54,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.current_size = (self.label1.width(), self.label1.height())
 
-    # def closeEvent(self, event):
-    #     reply = QtWidgets.QMessageBox.question(self, 'Window Close', 'Are you sure you want to close the window?',
-    #                                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-
-    #     if reply == QtWidgets.QMessageBox.Yes:
-    #         event.accept()
-    #         print('Window closed')
-    #     else:
-    #         event.ignore()
-
     def setup_left_layout(self):
         # Left control panel layout
         left_layout = QtWidgets.QVBoxLayout()
-        left_layout.setAlignment(QtCore.Qt.AlignTop)  # Ensure alignment is top
+        left_layout.setAlignment(QtCore.Qt.AlignTop) 
         left_layout.addStretch(2)
 
         ###### Button Layout ######
         button_layout = QtWidgets.QHBoxLayout()
-        # self.button = QtWidgets.QPushButton("Turn on Video")
-        # self.button_close = QtWidgets.QPushButton("Turn off Video")
-        # button_layout.addWidget(self.button)
-        # button_layout.addWidget(self.button_close)
 
         self.button = QtWidgets.QPushButton("Video On")
-        self.button.setIcon(QtGui.QIcon('GUI_icon/on_button.png'))  # Replace 'path/to/on_icon.png' with the actual path
-        self.button.setIconSize(QtCore.QSize(32, 32))  # Adjust icon size as needed
+        self.button.setIcon(QtGui.QIcon('GUI_icon/on_button.png'))  
+        self.button.setIconSize(QtCore.QSize(32, 32))  
         button_layout.addWidget(self.button)
         
         self.button_close = QtWidgets.QPushButton("Video Stop")
-        self.button_close.setIcon(QtGui.QIcon('GUI_icon/off_button.png'))  # Replace 'path/to/off_icon.png' with the actual path
-        self.button_close.setIconSize(QtCore.QSize(32, 32))  # Adjust icon size as needed
+        self.button_close.setIcon(QtGui.QIcon('GUI_icon/off_button.png')) 
+        self.button_close.setIconSize(QtCore.QSize(32, 32))  
         button_layout.addWidget(self.button_close)
         self.button.setToolTip("Click this button to start the video.")
         self.button_close.setToolTip("Click this button to stop the video.")
@@ -156,7 +138,7 @@ class MainWindow(QtWidgets.QMainWindow):
         radio_button_layout = QtWidgets.QHBoxLayout()
         self.radioButton_3p = QtWidgets.QRadioButton('3 point')
         self.radioButton_5p = QtWidgets.QRadioButton('5 point')
-        self.radioButton_5p.setChecked(True)  # Default selection
+        self.radioButton_5p.setChecked(True) 
         
         radio_button_layout.addWidget(self.radioButton_3p)
         radio_button_layout.addWidget(self.radioButton_5p)
@@ -165,7 +147,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         ###### Dropdown Layout ######
         dropdown_layout = QtWidgets.QVBoxLayout()
-        # dropdown_layout.setAlignment(QtCore.Qt.AlignTop)
         self.dropdown = QtWidgets.QComboBox()
         self.dropdown.addItems(['Atlas (Colin27)',
                                'Atlas (Age 20-24)', 'Atlas (Age 25-29)',
@@ -209,7 +190,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if var_name == 'checkbox_1010':
                 chk_box.setChecked(True)
             hbox.addWidget(chk_box)
-            hbox.addStretch(1)  # You can adjust the ratio of stretches to control spacing
+            hbox.addStretch(1)  
             checkbox_layout.addLayout(hbox)
         left_layout.addLayout(checkbox_layout)
         left_layout.addStretch(1)
@@ -225,9 +206,6 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.addStretch(6)
 
         self.main_layout.addLayout(left_layout, 1)
-        # left_widget = QtWidgets.QWidget()
-        # left_widget.setLayout(left_layout)
-        # self.main_layout.addWidget(left_widget)
 
     def setup_right_layout(self):
         # # Right side layout (Image Display)
@@ -237,79 +215,21 @@ class MainWindow(QtWidgets.QMainWindow):
         # Image Display
         self.label1 = QtWidgets.QLabel()
         self.label1.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        self.label1.setAlignment(QtCore.Qt.AlignCenter)  # Ensure the pixmap is centered
-        # self.update_pixmap(800, 500)  # Initial pixmap size
+        self.label1.setAlignment(QtCore.Qt.AlignCenter) 
         right_layout.addWidget(self.label1)
         
         self.main_layout.addLayout(right_layout, 3)
-        # right_widget = QtWidgets.QWidget()
-        # right_widget.setLayout(right_layout)
-        # self.main_layout.addWidget(right_widget)
-
-        # Create right layout for video display
-        # self.label1 = QtWidgets.QLabel(self.centralwidget)
-        # self.label1.setStyleSheet("background-color: white")
-        # self.label1.setScaledContents(True)
-    
-        # # Add QSizeGrip to make QLabel resizable
-        # size_grip = QtWidgets.QSizeGrip(self.label1)
-        # size_grip.setStyleSheet("background-color: transparent")
-        
-        # right_layout = QtWidgets.QVBoxLayout()
-        # right_layout.addWidget(self.label1)
-        # right_layout.addWidget(size_grip, 0, QtCore.Qt.AlignBottom | QtCore.Qt.AlignRight)
-    
-        # self.main_layout.addLayout(right_layout)
 
     def update_pixmap(self, width, height):
-        # pixmap = QtGui.QPixmap(width, height)
-        # pixmap.fill(QtGui.QColor('darkGray'))
-        # self.label1.setPixmap(pixmap)
-
         pixmap = QtGui.QPixmap("GUI_icon/NeuroNavigatAR_logo.png")  # Load an image file
         scaled_pixmap = pixmap.scaled(int(width), int(height), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
         self.label1.setPixmap(scaled_pixmap)
         
     def resizeEvent(self, event):
-        # This is where you dynamically adjust the pixmap size
-        new_width = self.size().width() // 3 * 2  # Example: half of window width
-        new_height = self.size().height() // 1.2  # Example: half of window height
+        new_width = self.size().width() // 3 * 2 
+        new_height = self.size().height() // 1.2 
         self.update_pixmap(new_width, new_height)
         super(MainWindow, self).resizeEvent(event)
-
-        # main_layout.addLayout(left_layout, 1)  # The second parameter controls the proportion
-        # main_layout.addLayout(right_layout, 3)  # The right side is given more space
-
-        # # Set the layout to the central widget
-        # self.centralwidget.setLayout(main_layout)
-        # MainWindow.setCentralWidget(self.centralwidget)
-        # self.statusbar = QtWidgets.QStatusBar(MainWindow)
-        # MainWindow.setStatusBar(self.statusbar)
-
-        # # Connect signals
-        # # self.horizontalSlider_smcm.valueChanged.connect(self.scaletext_smcm)
-        # # self.horizontalSlider_movavg.valueChanged.connect(self.scaletext_movavg)
-        # self.button.clicked.connect(self.loadImage)
-        # self.button_close.clicked.connect(self.closeVideo)
-
-    # def scaletext_smcm(self, value):
-    #     self.label_smcm.setText(str(value / 100))
-
-    # def scaletext_movavg(self, value):
-    #     self.label_movavg.setText(str(value))
-
-
-
-    # def retranslateUi(self, MainWindow):
-    #     _translate = QtCore.QCoreApplication.translate
-    #     MainWindow.setWindowTitle(_translate("MainWindow", "LiveFaceMask"))
-    #     self.label_smcm       .setText(_translate("MainWindow", str(0.53)))
-    #     self.label_movavg     .setText(_translate("MainWindow", str(1)))
-    #     self.label_opsize     .setText(_translate("MainWindow", str(1)))
-    #     self.name_smcm        .setText(_translate("MainWindow", "model\npositions")) #------ to change -----#
-    #     self.name_movavg      .setText(_translate("MainWindow", "moving\naverage"))
-    #     self.button           .setText(_translate("MainWindow", "Turn on Video"))
-    #     self.button_close     .setText(_translate("MainWindow", "Turn off Video"))
         
     def scaletext_x  (self, value):
         self.label_x   .setText(str(value/100))
@@ -324,12 +244,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def scaletext_opsize(self, value):
         self.label_opsize.setText(str(value))
         
-        
     def closeVideo(self):
         self.videoStatus = False
         
     def selectionchange(self, i):
-        # do something based on the selection
         if self.dropdown.itemText(i) == 'Atlas (Colin27)':
             atlas_file = '1020atlas/1020atlas_Colin27.json'
             atlas_file_5points = '1020atlas/1020atlas_Colin27_5points.json'
@@ -382,7 +300,6 @@ class MainWindow(QtWidgets.QMainWindow):
         atlas10_5=jd.load(atlas_file)
         atlas10_5_3points=jd.load(atlas_file)
         atlas10_5_5points=jd.load(atlas_file_5points)
-#         print("Now selected", atlas_file)        
         
     def Brain_LMs_plotting(self, brain10_5p, results, image):
         #1010 system
@@ -423,34 +340,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         opsize = self.horizontalSlider_opsize.value()
         opthick = opsize-1
-    
-    # 1. Draw face landmarks
-#         mp_drawing.draw_landmarks(image, results.face_landmarks, mp_holistic.FACEMESH_CONTOURS, 
-#                                  mp_drawing.DrawingSpec(color=(80,110,10), thickness=1, circle_radius=1),
-#                                  mp_drawing.DrawingSpec(color=(80,256,121), thickness=1, circle_radius=1)
-#                                  )   
 
         if(results.face_landmarks is not None):
-    #             mp_drawing.draw_landmarks(image, landmark_face_predictor_for_all, None, 
-    #                                  mp_drawing.DrawingSpec(color=(0,0,255), thickness=1, circle_radius=5),
-    #                                  mp_drawing.DrawingSpec(color=(0,0,255), thickness=1, circle_radius=5)
-    #                                  )             
-    #             mp_drawing.draw_landmarks(image, numpy2landmark(predicted_cz), None, 
-    #                                  mp_drawing.DrawingSpec(color=(0,0,255), thickness=1, circle_radius=5),
-    #                                  mp_drawing.DrawingSpec(color=(0,0,255), thickness=1, circle_radius=5)
-    #                                  )   
-            # mp_drawing.draw_landmarks(image, nz, None, 
-            #                      mp_drawing.DrawingSpec(color=(255,0,0), thickness=2, circle_radius=3),
-            #                      mp_drawing.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=3)
-            #                      )  
-                # mp_drawing.draw_landmarks(image, numpy2landmark([iz]), None, 
-                #                      mp_drawing.DrawingSpec(color=(255,255,0), thickness=2, circle_radius=3),
-                #                      mp_drawing.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=3)
-                #                      ) 
-            # mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((lpa_to_plot, rpa_to_plot))), None, 
-            #                      mp_drawing.DrawingSpec(color=(255,0,0), thickness=2, circle_radius=3),
-            #                      mp_drawing.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=3)
-            #                      ) 
             # -------105 system--------
             if self.checkbox_105.isChecked():
                 mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((brain10_5p["aal"],brain10_5p["aar"], brain10_5p["sm"], brain10_5p["cm"][0:9]))), None, 
@@ -509,21 +400,13 @@ class MainWindow(QtWidgets.QMainWindow):
                                          mp_drawing.DrawingSpec(color=(0,255,0,128), thickness=2, circle_radius=3)
                                          ) 
                 
-                    
-    #             mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((cpl_1, cpr_1, cpl_2, cpr_2, cpl_3, cpr_3, cpl_4, cpr_4,\
-    #                                                                       cpl_5, cpr_5, cpl_6, cpr_6, cpl_7, cpr_7))), None, 
-    #                      mp_drawing.DrawingSpec(color=(126,37,3), thickness=1, circle_radius=3),
-    #                      mp_drawing.DrawingSpec(color=(126,37,3), thickness=1, circle_radius=3)
-    #                      )  
-    
     def livefacemask(self, image, results, moving_averaged_Brain_LMs_list, iteration):
         if(results.face_landmarks is not None):
             if self.radioButton_3p.isChecked():
                 atlas10_5 = copy.deepcopy(atlas10_5_3points)
             else:
                 atlas10_5 = copy.deepcopy(atlas10_5_5points)
-            # -----------------------------------------------------
-            
+
             # -------------- Linear Matrix ---------------
             pts=results.face_landmarks.landmark
             landmark_face_predictor_for_all = landmark_pb2.NormalizedLandmarkList(
@@ -542,11 +425,9 @@ class MainWindow(QtWidgets.QMainWindow):
             Amat, bvec = affinemap(np.array([atlas10_5_3points['nz'], atlas10_5_3points['lpa'], atlas10_5_3points['rpa'], atlas10_5_3points['iz'], atlas10_5_3points['cz']]),
                                    np.array([landmark2numpy(nz)[0], predicted_lpa[0], predicted_rpa[0], predicted_iz[0], predicted_cz[0]]))
 
-
-#             print(Amat)
             lpa_to_plot = predicted_lpa
             rpa_to_plot = predicted_rpa
-            # -------------- Old Method ---------------
+            # -------------- alternative method (old) ---------------
             if self.checkbox_old.isChecked():
                 pts=results.face_landmarks.landmark
                 landmark_face_subset = landmark_pb2.NormalizedLandmarkList(
@@ -690,33 +571,10 @@ class MainWindow(QtWidgets.QMainWindow):
             brain10_5p_array = list(brain10_5p.values())
             brain10_5p_array = np.concatenate(brain10_5p_array, axis=0)
             
-            # moving_averaged_Brain_LMs_list.append(brain10_5p_array)
-
-            # moving_window_size = self.horizontalSlider_movavg.value()
-            # if iteration >= moving_window_size:
-            #     moving_averaged_Brain_LMs_list.pop(0)
-            #     moving_averaged_Brain_LMs_arr = np.stack(moving_averaged_Brain_LMs_list, axis=0)
-            #     Avged_moving_averaged_Brain_LMs_arr = np.mean(moving_averaged_Brain_LMs_arr, axis=0)
-
-            #     Avged_moving_averaged_Brain_LMs_dict = map_arrays_to_dict(Avged_moving_averaged_Brain_LMs_arr)
-            #     self.Brain_LMs_plotting(Avged_moving_averaged_Brain_LMs_dict, results, image)
-
 
             moving_averaged_Brain_LMs_list.append(brain10_5p_array)
             moving_window_size = self.horizontalSlider_movavg.value()
         
-            # # Adjust the data list to match the current window size
-            # if len(moving_averaged_Brain_LMs_list) > moving_window_size:
-            #     moving_averaged_Brain_LMs_list.pop(0)
-        
-            # # Check if there's enough data to compute the moving average
-            # if len(moving_averaged_Brain_LMs_list) == moving_window_size:
-            #     moving_averaged_Brain_LMs_arr = np.stack(moving_averaged_Brain_LMs_list, axis=0)
-            #     Avged_moving_averaged_Brain_LMs_arr = np.mean(moving_averaged_Brain_LMs_arr, axis=0)
-        
-            #     Avged_moving_averaged_Brain_LMs_dict = map_arrays_to_dict(Avged_moving_averaged_Brain_LMs_arr)
-            #     self.Brain_LMs_plotting(Avged_moving_averaged_Brain_LMs_dict, results, image)
-
             if len(moving_averaged_Brain_LMs_list) > moving_window_size:
                     # Trim the list to the current window size by removing the oldest entries
                     moving_averaged_Brain_LMs_list = moving_averaged_Brain_LMs_list[-moving_window_size:]
@@ -733,15 +591,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def loadImage(self):
         self.videoStatus = True
-    ####### LOAD IMAGD ########     
-#         image = cv2.imread("subject52_2_forBIOESympo_2to200.jpg")
-#         with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5, smooth_landmarks=True) as holistic:
-#             results = holistic.process(image)
-#             self.livefacemask(image, results)
-#             FlippedImage = cv2.flip(image, 1)
-#             self.label1.setPixmap(convert_cv_qt(FlippedImage))
-        
-    ####### VIDEO ########
         vid = cv2.VideoCapture(0)
         iteration = 0
         moving_averaged_Brain_LMs_list = []
@@ -750,8 +599,6 @@ class MainWindow(QtWidgets.QMainWindow):
             while(vid.isOpened()):
                 QtWidgets.QApplication.processEvents()
                 ret, frame = vid.read()
-                # desired_size = (640*2, ) # Enter your desired width and height as a tuple
-                # frame = cv2.resize(frame, desired_size)
 
                 # Resize frame to current size
                 frame = self.resize_frame_keep_aspect(frame, self.label1.width(), self.label1.height())
@@ -769,7 +616,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 moving_averaged_Brain_LMs_list = self.livefacemask(image, results, moving_averaged_Brain_LMs_list, iteration)
                 iteration += 1
                 
-#                 cv2.imshow('Raw Webcam Feed', image)
                 FlippedImage = cv2.flip(image, 1)
                 self.label1.setPixmap(convert_cv_qt(FlippedImage))
         
@@ -778,13 +624,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
     def resize_frame_keep_aspect(self, frame, label_width, label_height):
-        # Get frame dimensions
-        height, width = frame.shape[:2]
-        
-        # Calculate the aspect ratio of the frame
+        height, width = frame.shape[:2]        
         aspect_ratio = width / height
         
-        # Compute new dimensions based on aspect ratio
         if label_width / label_height > aspect_ratio:
             new_height = label_height
             new_width = int(new_height * aspect_ratio)
@@ -792,31 +634,13 @@ class MainWindow(QtWidgets.QMainWindow):
             new_width = label_width
             new_height = int(new_width / aspect_ratio)
         
-        # Ensure the new dimensions are even numbers (common requirement for some video processing tasks)
         new_width += new_width % 2
         new_height += new_height % 2
         
         # Resize the frame
         resized_frame = cv2.resize(frame, (new_width, new_height))
         return resized_frame
-    def plot(self):
-            # random data
-            import random
-            data = [random.random() for i in range(10)]
-
-            # clearing old figure
-            self.figure.clear()
-
-            # create an axis
-            ax = self.figure.add_subplot(111)
-
-            # plot data
-            ax.plot(data, '*-')
-
-            # refresh canvas
-#             self.canvas.draw()
-            self.label1.setPixmap()
-
+    
 if __name__ == "__main__":
     app = QtWidgets.QApplication.instance()  # Check if an instance already exists
     if not app:  # Create a new instance if not

@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from mediapipe.framework.formats import landmark_pb2
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui
 
 def affinemap(pfrom, pto):
     bsubmat=np.eye(3)
