@@ -53,6 +53,8 @@ jupyter notebook NNAR_GUI.ipynb
 ```
 
 ## Citation
-If you use this tool in your research, please cite the following paper:
+If you use this tool in your research, please cite the following papers:
 
 F. Yen, Y. Lin, and Q. Fang, "Real-time guidance for fNIRS headgear placement using augmented reality," in Optica Biophotonics Congress: Biomedical Optics 2024 (Translational, Microscopy, OCT, OTS, BRAIN), Technical Digest Series (Optica Publishing Group, 2024), paper BW1C.6.
+
+Dai, H., Pears, N., Smith, W., & Duncan, C. (2019). Statistical Modeling of Craniofacial Shape and Texture. International Journal of Computer Vision, 128(2), 547–571. https://doi.org/10.1007/s11263-019-01260-7
