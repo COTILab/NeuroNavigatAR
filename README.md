@@ -33,7 +33,7 @@ There are two options for setting up the environment:
 #### Option 1: Using Conda (Recommended)
 ```bash
 conda env create -f environment.yml
-conda activate NeuroNavigatAR
+conda activate nnar
 ```
 
 #### Option 2: Using pip

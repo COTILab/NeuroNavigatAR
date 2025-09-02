@@ -1,4 +1,4 @@
-name: NeuroNavigatAR
+name: nnar
 channels:
   - conda-forge
   - defaults
