@@ -23,7 +23,7 @@ NeuroNavigatAR (NNAR) is an augmented reality (AR) tool designed to visualize op
 
 ### Clone the repository
 ```bash
-git clone git@github.com:fanyuyen/NeuroNavigatAR.git
+git clone git@github.com:COTILab/NeuroNavigatAR.git
 cd NeuroNavigatAR
 ```
 
