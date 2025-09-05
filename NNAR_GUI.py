@@ -29,6 +29,22 @@ cz_mat = scipy.io.loadmat('Trained model/x_cz_all.mat')
 x_cz = cz_mat['x_cz']
 
 class MainWindow(QtWidgets.QMainWindow):
+    ATLAS_MAPPING = {
+        'Atlas (Colin27)': ('1020atlas/1020atlas_Colin27.json', '1020atlas/1020atlas_Colin27_5points.json'),
+        'Atlas (Age 20-24)': ('1020atlas/1020atlas_20-24Years.json', '1020atlas/1020atlas_20-24Years_5points.json'),
+        'Atlas (Age 25-29)': ('1020atlas/1020atlas_25-29Years.json', '1020atlas/1020atlas_25-29Years_5points.json'),
+        'Atlas (Age 30-34)': ('1020atlas/1020atlas_30-34Years.json', '1020atlas/1020atlas_30-34Years_5points.json'),
+        'Atlas (Age 35-39)': ('1020atlas/1020atlas_35-39Years.json', '1020atlas/1020atlas_35-39Years_5points.json'),
+        'Atlas (Age 40-44)': ('1020atlas/1020atlas_40-44Years.json', '1020atlas/1020atlas_40-44Years_5points.json'),
+        'Atlas (Age 45-49)': ('1020atlas/1020atlas_45-49Years.json', '1020atlas/1020atlas_45-49Years_5points.json'),
+        'Atlas (Age 50-54)': ('1020atlas/1020atlas_50-54Years.json', '1020atlas/1020atlas_50-54Years_5points.json'),
+        'Atlas (Age 55-59)': ('1020atlas/1020atlas_55-59Years.json', '1020atlas/1020atlas_55-59Years_5points.json'),
+        'Atlas (Age 60-64)': ('1020atlas/1020atlas_60-64Years.json', '1020atlas/1020atlas_60-64Years_5points.json'),
+        'Atlas (Age 65-69)': ('1020atlas/1020atlas_65-69Years.json', '1020atlas/1020atlas_65-69Years_5points.json'),
+        'Atlas (Age 70-74)': ('1020atlas/1020atlas_70-74Years.json', '1020atlas/1020atlas_70-74Years_5points.json'),
+        'Atlas (Age 75-79)': ('1020atlas/1020atlas_75-79Years.json', '1020atlas/1020atlas_75-79Years_5points.json'),
+        'Atlas (Age 80-84)': ('1020atlas/1020atlas_80-84Years.json', '1020atlas/1020atlas_80-84Years_5points.json')
+    }
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setObjectName("MainWindow")
@@ -248,59 +264,45 @@ class MainWindow(QtWidgets.QMainWindow):
         self.videoStatus = False
         
     def selectionchange(self, i):
-        if self.dropdown.itemText(i) == 'Atlas (Colin27)':
-            atlas_file = '1020atlas/1020atlas_Colin27.json'
-            atlas_file_5points = '1020atlas/1020atlas_Colin27_5points.json'
+        selected_text = self.dropdown.itemText(i)
+        if selected_text in self.ATLAS_MAPPING:
+            atlas_file, atlas_file_5points = self.ATLAS_MAPPING[selected_text]
+            atlas10_5 = jd.load(atlas_file)
+            atlas10_5_3points = jd.load(atlas_file)
+            atlas10_5_5points = jd.load(atlas_file_5points)
         
-        if self.dropdown.itemText(i) == 'Atlas (Age 20-24)':
-            atlas_file = '1020atlas/1020atlas_20-24Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_20-24Years_5points.json'
-        if self.dropdown.itemText(i) == 'Atlas (Age 25-29)':
-            atlas_file = '1020atlas/1020atlas_25-29Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_25-29Years_5points.json'
-            
-        if self.dropdown.itemText(i) == 'Atlas (Age 30-34)':
-            atlas_file = '1020atlas/1020atlas_30-34Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_30-34Years_5points.json'
-        if self.dropdown.itemText(i) == 'Atlas (Age 35-39)':
-            atlas_file = '1020atlas/1020atlas_35-39Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_35-39Years_5points.json'
-            
-        if self.dropdown.itemText(i) == 'Atlas (Age 40-44)':
-            atlas_file = '1020atlas/1020atlas_40-44Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_40-44Years_5points.json'
-        if self.dropdown.itemText(i) == 'Atlas (Age 45-49)':
-            atlas_file = '1020atlas/1020atlas_45-49Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_45-49Years_5points.json'
-            
-        if self.dropdown.itemText(i) == 'Atlas (Age 50-54)':
-            atlas_file = '1020atlas/1020atlas_50-54Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_50-54Years_5points.json'
-        if self.dropdown.itemText(i) == 'Atlas (Age 55-59)':
-            atlas_file = '1020atlas/1020atlas_55-59Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_55-59Years_5points.json'
-            
-        if self.dropdown.itemText(i) == 'Atlas (Age 60-64)':
-            atlas_file = '1020atlas/1020atlas_60-64Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_60-64Years_5points.json'
-        if self.dropdown.itemText(i) == 'Atlas (Age 65-69)':
-            atlas_file = '1020atlas/1020atlas_65-69Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_65-69Years_5points.json'
+    def apply_registration_to_atlas_points(self, Amat, bvec, atlas10_5):
+        """Apply registration to all atlas points at once"""
+        point_groups = ['aal', 'aar', 'apl', 'apr', 'cm', 'sm', 
+                       'cal_1', 'car_1', 'cal_2', 'car_2', 'cal_3', 'car_3',
+                       'cal_4', 'car_4', 'cal_5', 'car_5', 'cal_6', 'car_6', 'cal_7', 'car_7',
+                       'cpl_1', 'cpr_1', 'cpl_2', 'cpr_2', 'cpl_3', 'cpr_3',
+                       'cpl_4', 'cpr_4', 'cpl_5', 'cpr_5', 'cpl_6', 'cpr_6', 'cpl_7', 'cpr_7']
         
-        if self.dropdown.itemText(i) == 'Atlas (Age 70-74)':
-            atlas_file = '1020atlas/1020atlas_70-74Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_70-74Years_5points.json'
-        if self.dropdown.itemText(i) == 'Atlas (Age 75-79)':
-            atlas_file = '1020atlas/1020atlas_75-79Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_75-79Years_5points.json'
+        brain10_5p = {}
+        for group in point_groups:
+            if group in atlas10_5:
+                brain10_5p[group] = reg1020(Amat, bvec, atlas10_5[group])
         
-        if self.dropdown.itemText(i) == 'Atlas (Age 80-84)':
-            atlas_file = '1020atlas/1020atlas_80-84Years.json'
-            atlas_file_5points = '1020atlas/1020atlas_80-84Years_5points.json'
-        atlas10_5=jd.load(atlas_file)
-        atlas10_5_3points=jd.load(atlas_file)
-        atlas10_5_5points=jd.load(atlas_file_5points)
+        return brain10_5p
+    
+    def apply_slider_adjustment(self, brain10_5p):
+        """Apply slider adjustment to all point groups"""
+        adjustment = (self.horizontalSlider_smcm.value() - 50) / 100
         
+        adjusted_brain10_5p = {}
+        for key, points in brain10_5p.items():
+            if isinstance(points, (list, np.ndarray)) and len(points) > 0:
+                adjusted_points = copy.deepcopy(points)
+                for i in range(len(adjusted_points)):
+                    if len(adjusted_points[i]) >= 2:
+                        adjusted_points[i][1] = points[i][1] + adjustment
+                adjusted_brain10_5p[key] = adjusted_points
+            else:
+                adjusted_brain10_5p[key] = points
+        
+        return adjusted_brain10_5p
+    
     def Brain_LMs_plotting(self, brain10_5p, results, image):
         #1010 system
         cm_1010 = brain10_5p["cm"][[0,2,4,6,8,10,12,14,16]]
@@ -448,126 +450,11 @@ class MainWindow(QtWidgets.QMainWindow):
             tmp = reg1020(Amat, bvec, [atlas10_5['lpa'], atlas10_5['rpa'], atlas10_5['iz']])
             iz = tmp[2]
 
-            aal = reg1020(Amat, bvec, atlas10_5['aal'])
-            aar = reg1020(Amat, bvec, atlas10_5['aar'])
-            sm = reg1020(Amat, bvec, atlas10_5['sm'])
-            cm = reg1020(Amat, bvec, atlas10_5['cm'])
-            
-            apl = reg1020(Amat, bvec, atlas10_5['apl'])
-            apr = reg1020(Amat, bvec, atlas10_5['apr'])
-            
-            cal_1 = reg1020(Amat, bvec, atlas10_5['cal_1'])
-            car_1 = reg1020(Amat, bvec, atlas10_5['car_1'])
-            cal_2 = reg1020(Amat, bvec, atlas10_5['cal_2'])
-            car_2 = reg1020(Amat, bvec, atlas10_5['car_2'])
-            cal_3 = reg1020(Amat, bvec, atlas10_5['cal_3'])
-            car_3 = reg1020(Amat, bvec, atlas10_5['car_3'])
-            cal_4 = reg1020(Amat, bvec, atlas10_5['cal_4'])
-            car_4 = reg1020(Amat, bvec, atlas10_5['car_4'])
-            cal_5 = reg1020(Amat, bvec, atlas10_5['cal_5'])
-            car_5 = reg1020(Amat, bvec, atlas10_5['car_5'])
-            cal_6 = reg1020(Amat, bvec, atlas10_5['cal_6'])
-            car_6 = reg1020(Amat, bvec, atlas10_5['car_6'])
-            cal_7 = reg1020(Amat, bvec, atlas10_5['cal_7'])
-            car_7 = reg1020(Amat, bvec, atlas10_5['car_7'])
-            
-            cpl_1 = reg1020(Amat, bvec, atlas10_5['cpl_1'])
-            cpr_1 = reg1020(Amat, bvec, atlas10_5['cpr_1'])
-            cpl_2 = reg1020(Amat, bvec, atlas10_5['cpl_2'])
-            cpr_2 = reg1020(Amat, bvec, atlas10_5['cpr_2'])
-            cpl_3 = reg1020(Amat, bvec, atlas10_5['cpl_3'])
-            cpr_3 = reg1020(Amat, bvec, atlas10_5['cpr_3'])
-            cpl_4 = reg1020(Amat, bvec, atlas10_5['cpl_4'])
-            cpr_4 = reg1020(Amat, bvec, atlas10_5['cpr_4'])
-            cpl_5 = reg1020(Amat, bvec, atlas10_5['cpl_5'])
-            cpr_5 = reg1020(Amat, bvec, atlas10_5['cpr_5'])
-            cpl_6 = reg1020(Amat, bvec, atlas10_5['cpl_6'])
-            cpr_6 = reg1020(Amat, bvec, atlas10_5['cpr_6'])
-            cpl_7 = reg1020(Amat, bvec, atlas10_5['cpl_7'])
-            cpr_7 = reg1020(Amat, bvec, atlas10_5['cpr_7'])
+            brain10_5p = self.apply_registration_to_atlas_points(Amat, bvec, atlas10_5)
                         
-            def move_by_slider(arr):
-                arr_out = copy.deepcopy(arr)
-                for i in range(0, len(arr)):
-                    arr_out[i][1] = arr[i][1]+(self.horizontalSlider_smcm.value()-50)/100
-                return arr_out
-            aal = move_by_slider(aal)
-            aar = move_by_slider(aar)
-            apl = move_by_slider(apl)
-            apr = move_by_slider(apr)
-            cm = move_by_slider(cm)
-            sm = move_by_slider(sm)
-            
-            cal_1 = move_by_slider(cal_1)
-            car_1 = move_by_slider(car_1)
-            cal_2 = move_by_slider(cal_2)
-            car_2 = move_by_slider(car_2)
-            cal_3 = move_by_slider(cal_3)
-            car_3 = move_by_slider(car_3)
-            cal_4 = move_by_slider(cal_4)
-            car_4 = move_by_slider(car_4)
-            cal_5 = move_by_slider(cal_5)
-            car_5 = move_by_slider(car_5)
-            cal_6 = move_by_slider(cal_6)
-            car_6 = move_by_slider(car_6)
-            cal_7 = move_by_slider(cal_7)
-            car_7 = move_by_slider(car_7)
-            
-            cpl_1 = move_by_slider(cpl_1)
-            cpr_1 = move_by_slider(cpr_1)
-            cpl_2 = move_by_slider(cpl_2)
-            cpr_2 = move_by_slider(cpr_2)
-            cpl_3 = move_by_slider(cpl_3)
-            cpr_3 = move_by_slider(cpr_3)
-            cpl_4 = move_by_slider(cpl_4)
-            cpr_4 = move_by_slider(cpr_4)
-            cpl_5 = move_by_slider(cpl_5)
-            cpr_5 = move_by_slider(cpr_5)
-            cpl_6 = move_by_slider(cpl_6)
-            cpr_6 = move_by_slider(cpr_6)
-            cpl_7 = move_by_slider(cpl_7)
-            cpr_7 = move_by_slider(cpr_7)
+            brain10_5p = self.apply_slider_adjustment(brain10_5p)
 
 
-            # ------- save 10-5 points for plotting -----
-            brain10_5p = {}
-            brain10_5p['aal'] = aal
-            brain10_5p['aar'] = aar
-            brain10_5p['apl'] = apl
-            brain10_5p['apr'] = apr
-            brain10_5p['cm'] = cm
-            brain10_5p['sm'] = sm
-            brain10_5p['cal_1'] = cal_1
-            brain10_5p['car_1'] = car_1
-            brain10_5p['cal_2'] = cal_2
-            brain10_5p['car_2'] = car_2
-            brain10_5p['cal_3'] = cal_3
-            brain10_5p['car_3'] = car_3
-            brain10_5p['cal_4'] = cal_4
-            brain10_5p['car_4'] = car_4
-            brain10_5p['cal_5'] = cal_5
-            brain10_5p['car_5'] = car_5
-            brain10_5p['cal_6'] = cal_6
-            brain10_5p['car_6'] = car_6
-            brain10_5p['cal_7'] = cal_7
-            brain10_5p['car_7'] = car_7
-
-            brain10_5p['cpl_1'] = cpl_1
-            brain10_5p['cpr_1'] = cpr_1
-            brain10_5p['cpl_2'] = cpl_2
-            brain10_5p['cpr_2'] = cpr_2
-            brain10_5p['cpl_3'] = cpl_3
-            brain10_5p['cpr_3'] = cpr_3
-            brain10_5p['cpl_4'] = cpl_4
-            brain10_5p['cpr_4'] = cpr_4
-            brain10_5p['cpl_5'] = cpl_5
-            brain10_5p['cpr_5'] = cpr_5
-            brain10_5p['cpl_6'] = cpl_6
-            brain10_5p['cpr_6'] = cpr_6
-            brain10_5p['cpl_7'] = cpl_7
-            brain10_5p['cpr_7'] = cpr_7
-
-            # ------- END -----
             brain10_5p_array = list(brain10_5p.values())
             brain10_5p_array = np.concatenate(brain10_5p_array, axis=0)
             
@@ -649,4 +536,3 @@ if __name__ == "__main__":
     mainWin = MainWindow()
     mainWin.show()
     app.exec_()
-        
