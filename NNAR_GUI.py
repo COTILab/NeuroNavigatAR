@@ -10,41 +10,26 @@ import scipy.io
 import sys
 sys.path.append('GUI_functions')
 
-from nnar_utils import affinemap, reg1020, landmark2numpy, numpy2landmark, my_reg1020, convert_cv_qt, map_arrays_to_dict
+from nnar_utils import affinemap, reg1020, landmark2numpy, numpy2landmark, my_reg1020, convert_cv_qt, map_arrays_to_dict, resize_frame_keep_aspect, apply_registration_to_atlas_points, ATLAS_MAPPING, extract_eeg_system_points
 
 mp_drawing = mp.solutions.drawing_utils # Drawing helpers
 mp_holistic = mp.solutions.holistic # Mediapipe Solutions
-atlas10_5 = jd.load('1020atlas/1020atlas_Colin27.json') # default
 atlas10_5_3points = jd.load('1020atlas/1020atlas_Colin27.json')
-atlas10_5_5points = jd.load('1020atlas/1020atlas_Colin27_5points.json') # default
+atlas10_5_5points = jd.load('1020atlas/1020atlas_Colin27_5points.json')
+atlas10_5 = copy.deepcopy(atlas10_5_3points)
 
 lpa_mat = scipy.io.loadmat('Trained model/x_lpa_all.mat')
-x_lpa = lpa_mat['x_lpa']
 rpa_mat = scipy.io.loadmat('Trained model/x_rpa_all.mat')
-x_rpa = rpa_mat['x_rpa']
-
 iz_mat = scipy.io.loadmat('Trained model/x_iz_all.mat')
-x_iz = iz_mat['x_iz']
 cz_mat = scipy.io.loadmat('Trained model/x_cz_all.mat')
+
+x_lpa = lpa_mat['x_lpa']
+x_rpa = rpa_mat['x_rpa']
+x_iz = iz_mat['x_iz']
 x_cz = cz_mat['x_cz']
 
 class MainWindow(QtWidgets.QMainWindow):
-    ATLAS_MAPPING = {
-        'Atlas (Colin27)': ('1020atlas/1020atlas_Colin27.json', '1020atlas/1020atlas_Colin27_5points.json'),
-        'Atlas (Age 20-24)': ('1020atlas/1020atlas_20-24Years.json', '1020atlas/1020atlas_20-24Years_5points.json'),
-        'Atlas (Age 25-29)': ('1020atlas/1020atlas_25-29Years.json', '1020atlas/1020atlas_25-29Years_5points.json'),
-        'Atlas (Age 30-34)': ('1020atlas/1020atlas_30-34Years.json', '1020atlas/1020atlas_30-34Years_5points.json'),
-        'Atlas (Age 35-39)': ('1020atlas/1020atlas_35-39Years.json', '1020atlas/1020atlas_35-39Years_5points.json'),
-        'Atlas (Age 40-44)': ('1020atlas/1020atlas_40-44Years.json', '1020atlas/1020atlas_40-44Years_5points.json'),
-        'Atlas (Age 45-49)': ('1020atlas/1020atlas_45-49Years.json', '1020atlas/1020atlas_45-49Years_5points.json'),
-        'Atlas (Age 50-54)': ('1020atlas/1020atlas_50-54Years.json', '1020atlas/1020atlas_50-54Years_5points.json'),
-        'Atlas (Age 55-59)': ('1020atlas/1020atlas_55-59Years.json', '1020atlas/1020atlas_55-59Years_5points.json'),
-        'Atlas (Age 60-64)': ('1020atlas/1020atlas_60-64Years.json', '1020atlas/1020atlas_60-64Years_5points.json'),
-        'Atlas (Age 65-69)': ('1020atlas/1020atlas_65-69Years.json', '1020atlas/1020atlas_65-69Years_5points.json'),
-        'Atlas (Age 70-74)': ('1020atlas/1020atlas_70-74Years.json', '1020atlas/1020atlas_70-74Years_5points.json'),
-        'Atlas (Age 75-79)': ('1020atlas/1020atlas_75-79Years.json', '1020atlas/1020atlas_75-79Years_5points.json'),
-        'Atlas (Age 80-84)': ('1020atlas/1020atlas_80-84Years.json', '1020atlas/1020atlas_80-84Years_5points.json')
-    }
+
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setObjectName("MainWindow")
@@ -237,7 +222,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.addLayout(right_layout, 3)
 
     def update_pixmap(self, width, height):
-        pixmap = QtGui.QPixmap("GUI_icon/NeuroNavigatAR_logo.png")  # Load an image file
+        pixmap = QtGui.QPixmap("GUI_icon/NeuroNavigatAR_logo.png")
         scaled_pixmap = pixmap.scaled(int(width), int(height), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
         self.label1.setPixmap(scaled_pixmap)
         
@@ -264,27 +249,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.videoStatus = False
         
     def selectionchange(self, i):
+        global atlas10_5, atlas10_5_3points, atlas10_5_5points
+        """Select atlas based on dropdown menu"""
         selected_text = self.dropdown.itemText(i)
-        if selected_text in self.ATLAS_MAPPING:
-            atlas_file, atlas_file_5points = self.ATLAS_MAPPING[selected_text]
+        if selected_text in ATLAS_MAPPING:
+            atlas_file, atlas_file_5points = ATLAS_MAPPING[selected_text]
             atlas10_5 = jd.load(atlas_file)
             atlas10_5_3points = jd.load(atlas_file)
             atlas10_5_5points = jd.load(atlas_file_5points)
-        
-    def apply_registration_to_atlas_points(self, Amat, bvec, atlas10_5):
-        """Apply registration to all atlas points at once"""
-        point_groups = ['aal', 'aar', 'apl', 'apr', 'cm', 'sm', 
-                       'cal_1', 'car_1', 'cal_2', 'car_2', 'cal_3', 'car_3',
-                       'cal_4', 'car_4', 'cal_5', 'car_5', 'cal_6', 'car_6', 'cal_7', 'car_7',
-                       'cpl_1', 'cpr_1', 'cpl_2', 'cpr_2', 'cpl_3', 'cpr_3',
-                       'cpl_4', 'cpr_4', 'cpl_5', 'cpr_5', 'cpl_6', 'cpr_6', 'cpl_7', 'cpr_7']
-        
-        brain10_5p = {}
-        for group in point_groups:
-            if group in atlas10_5:
-                brain10_5p[group] = reg1020(Amat, bvec, atlas10_5[group])
-        
-        return brain10_5p
     
     def apply_slider_adjustment(self, brain10_5p):
         """Apply slider adjustment to all point groups"""
@@ -303,104 +275,78 @@ class MainWindow(QtWidgets.QMainWindow):
         
         return adjusted_brain10_5p
     
+    def draw_landmarks_with_specs(self, image, points_list, front_color, back_color=None, thickness=None, radius=None):
+        """Helper to reduce repetitive mp_drawing calls"""
+        thickness = thickness or (self.horizontalSlider_opsize.value() - 1)
+        radius = radius or self.horizontalSlider_opsize.value()
+        back_color = back_color or front_color
+        
+        if points_list and len(points_list) > 0:
+            # Filter out empty points
+            valid_points = [p for p in points_list if p is not None and len(p) > 0]
+            if valid_points:
+                combined_points = np.vstack(valid_points)
+                mp_drawing.draw_landmarks(
+                    image, numpy2landmark(combined_points), None,
+                    mp_drawing.DrawingSpec(color=front_color, thickness=thickness, circle_radius=radius),
+                    mp_drawing.DrawingSpec(color=back_color, thickness=thickness, circle_radius=radius)
+                )
+    
     def Brain_LMs_plotting(self, brain10_5p, results, image):
-        #1010 system
-        cm_1010 = brain10_5p["cm"][[0,2,4,6,8,10,12,14,16]]
-        sm_1010 = brain10_5p["sm"][[0,2,4,6,8,10,12,14,16]]
-        front_cm_1010 = cm_1010[:len(cm_1010)//2 + 1]
-        back_cm_1010 = cm_1010[len(cm_1010)//2 + 1:]
+        systems = extract_eeg_system_points(brain10_5p)
         
-        aal_1010 = brain10_5p["aal"][[1,3,5,7]]
-        aar_1010 = brain10_5p["aar"][[1,3,5,7]]
-        apl_1010 = brain10_5p["apl"][[1,3,5,7]]
-        apr_1010 = brain10_5p["apr"][[1,3,5,7]]
-        
-        cal_2_1010 = brain10_5p["cal_2"][[1,3,5]]
-        car_2_1010 = brain10_5p["car_2"][[1,3,5]]
-        cal_4_1010 = brain10_5p["cal_4"][[1,3,5]]
-        car_4_1010 = brain10_5p["car_4"][[1,3,5]]
-        cal_6_1010 = brain10_5p["cal_6"][[3]]
-        car_6_1010 = brain10_5p["car_6"][[3]]
-        
-        cpl_2_1010 = brain10_5p["cpl_2"][[1,3,5]]
-        cpr_2_1010 = brain10_5p["cpr_2"][[1,3,5]]
-        cpl_4_1010 = brain10_5p["cpl_4"][[1,3,5]]
-        cpr_4_1010 = brain10_5p["cpr_4"][[1,3,5]]
-        cpl_6_1010 = brain10_5p["cpl_6"][[3]]
-        cpr_6_1010 = brain10_5p["cpr_6"][[3]]
-        
-        #1020 system
-        cm_1020 = brain10_5p["cm"][[0,4,8,12,16]]
-        sm_1020 = brain10_5p["sm"][[0,4,8,12,16]]
-        front_cm_1020 = sm_1020[:len(cm_1020)//2 + 1] 
-        back_cm_1020 = sm_1020[len(cm_1020)//2 + 1:] 
-        
-        aal_1020 = brain10_5p["aal"][[3,7]]
-        aar_1020 = brain10_5p["aar"][[3,7]]
-        apl_1020 = brain10_5p["apl"][[3,7]]
-        apr_1020 = brain10_5p["apr"][[3,7]]
-
         opsize = self.horizontalSlider_opsize.value()
         opthick = opsize-1
 
         if(results.face_landmarks is not None):
             # -------105 system--------
             if self.checkbox_105.isChecked():
-                mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((brain10_5p["aal"],brain10_5p["aar"], brain10_5p["sm"], brain10_5p["cm"][0:9]))), None, 
-                                     mp_drawing.DrawingSpec(color=(255,255,0), thickness=opthick, circle_radius=opsize),
-                                     mp_drawing.DrawingSpec(color=(0,255,0), thickness=opthick, circle_radius=opsize)
-                                     ) 
-                mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((brain10_5p["cal_1"], brain10_5p["car_1"], brain10_5p["cal_2"], brain10_5p["car_2"], brain10_5p["cal_3"], brain10_5p["car_3"], brain10_5p["cal_4"], brain10_5p["car_4"],\
-                                                                          brain10_5p["cal_5"], brain10_5p["car_5"], brain10_5p["cal_6"], brain10_5p["car_6"], brain10_5p["cal_7"], brain10_5p["car_7"]))), None, 
-                         mp_drawing.DrawingSpec(color=(255,255,0), thickness=opthick, circle_radius=opsize),
-                         mp_drawing.DrawingSpec(color=(0,255,0), thickness=opthick, circle_radius=opsize)
-                         ) 
+                # front of the head #
+                front_105_points = [brain10_5p["aal"], brain10_5p["aar"], brain10_5p["sm"], brain10_5p["cm"][0:9],
+                                    brain10_5p["cal_1"], brain10_5p["car_1"], brain10_5p["cal_2"], brain10_5p["car_2"],
+                                    brain10_5p["cal_3"], brain10_5p["car_3"], brain10_5p["cal_4"], brain10_5p["car_4"],
+                                    brain10_5p["cal_5"], brain10_5p["car_5"], brain10_5p["cal_6"], brain10_5p["car_6"],
+                                    brain10_5p["cal_7"], brain10_5p["car_7"]]
+                self.draw_landmarks_with_specs(image, front_105_points, front_color=(255,255,0), back_color=(0,255,0), thickness=opthick, radius=opsize)
+
                 if self.checkbox_backhead.isChecked():
                 ## back of the head ##
-                    mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((brain10_5p["apl"],brain10_5p["apr"], brain10_5p["cm"][9:]))), None, 
-                                     mp_drawing.DrawingSpec(color=(255,255,0), thickness=opthick, circle_radius=opsize),
-                                     mp_drawing.DrawingSpec(color=(0,255,0), thickness=opthick, circle_radius=opsize)
-                                     ) 
-                    mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((brain10_5p["cpl_1"], brain10_5p["cpr_1"], brain10_5p["cpl_2"], brain10_5p["cpr_2"], brain10_5p["cpl_3"], brain10_5p["cpr_3"], brain10_5p["cpl_4"], brain10_5p["cpr_4"],\
-                                                                              brain10_5p["cpl_5"], brain10_5p["cpr_5"], brain10_5p["cpl_6"], brain10_5p["cpr_6"], brain10_5p["cpl_7"], brain10_5p["cpr_7"]))), None, 
-                             mp_drawing.DrawingSpec(color=(255,255,0), thickness=2, circle_radius=3),
-                             mp_drawing.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=3)
-                             ) 
+                    back_105_points = [brain10_5p["apl"], brain10_5p["apr"], brain10_5p["cm"][9:],
+                                       brain10_5p["cpl_1"], brain10_5p["cpr_1"], brain10_5p["cpl_2"], brain10_5p["cpr_2"],
+                                       brain10_5p["cpl_3"], brain10_5p["cpr_3"], brain10_5p["cpl_4"], brain10_5p["cpr_4"],
+                                       brain10_5p["cpl_5"], brain10_5p["cpr_5"], brain10_5p["cpl_6"], brain10_5p["cpr_6"],
+                                       brain10_5p["cpl_7"], brain10_5p["cpr_7"]]
+                    self.draw_landmarks_with_specs(image, back_105_points, front_color=(255,255,0), back_color=(0,255,0), thickness=opthick, radius=opsize)
     
             # -------1010 system--------
+            system_1010 = systems['1010']
             if self.checkbox_1010.isChecked():
-                mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((sm_1010, front_cm_1010, aal_1010, aar_1010))), None, 
-                                     mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=opthick, circle_radius=opsize),
-                                     mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=opthick, circle_radius=opsize)
-                                     ) 
-                mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((cal_2_1010, car_2_1010, cal_4_1010, car_4_1010, cal_6_1010, car_6_1010))), None, 
-                                     mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=opthick, circle_radius=opsize),
-                                     mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=opthick, circle_radius=opsize)
-                                     ) 
+                # front of the head #
+                front_1010_points = [system_1010['sm'], system_1010['front_cm'], system_1010['aal'], system_1010['aar'],
+                                     system_1010['cal_2'], system_1010['car_2'], system_1010['cal_4'], system_1010['car_4'], system_1010['cal_6'], system_1010['car_6']]
+                self.draw_landmarks_with_specs(image, front_1010_points, front_color=(0,255,0), back_color=(0,255,0), thickness=opthick, radius=opsize)
+
                 if self.checkbox_backhead.isChecked():
                 ## back of the head ##
-                    mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((back_cm_1010, apl_1010, apr_1010))), None, 
-                                     mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=opthick, circle_radius=opsize),
-                                     mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=opthick, circle_radius=opsize)
-                                     ) 
-                    mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((cpl_2_1010, cpr_2_1010, cpl_4_1010, cpr_4_1010, cpl_6_1010, cpr_6_1010))), None, 
-                                         mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=2, circle_radius=3),
-                                         mp_drawing.DrawingSpec(color=(0,255,0,60), thickness=2, circle_radius=3)
-                                         ) 
-                    
-                    
+                    back_1010_points = [system_1010['apl'], system_1010['back_cm'], system_1010['apr'],
+                                        system_1010['cpl_2'], system_1010['cpr_2'], system_1010['cpl_4'], system_1010['cpr_4'],
+                                        system_1010['cpl_6'], system_1010['cpr_6']]
+                    self.draw_landmarks_with_specs(image, back_1010_points, front_color=(0,255,0), back_color=(0,255,0), thickness=opthick, radius=opsize)
+
             # -------1020 system--------
+            system_1020 = systems['1020']
             if self.checkbox_1020.isChecked():
-                mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((sm_1020, front_cm_1020, aal_1020, aar_1020))), None, 
-                                     mp_drawing.DrawingSpec(color=(0,125,255,128), thickness=opthick, circle_radius=opsize),
-                                     mp_drawing.DrawingSpec(color=(0,255,0,128), thickness=opthick, circle_radius=opsize)
-                                     ) 
+                # front of the head #
+                front_1020_points = [system_1020['sm'], system_1020['cm'], system_1020['aal'], system_1020['aar']]
+                self.draw_landmarks_with_specs(image, front_1020_points, front_color=(0,125,255), back_color=(0,255,0), thickness=opthick, radius=opsize)
+
                 if self.checkbox_backhead.isChecked():
                 ## back of the head ##
-                    mp_drawing.draw_landmarks(image, numpy2landmark(np.vstack((apl_1020, apr_1020))), None, 
-                                         mp_drawing.DrawingSpec(color=(0,125,255,128), thickness=2, circle_radius=3),
-                                         mp_drawing.DrawingSpec(color=(0,255,0,128), thickness=2, circle_radius=3)
-                                         ) 
+                    back_1020_points = [system_1020['apl'], system_1020['cm'][9:], system_1020['apr'],
+                                        system_1020['cpl_2'], system_1020['cpr_2'], system_1020['cpl_4'], system_1020['cpr_4'],
+                                        system_1020['cpl_6'], system_1020['cpr_6']]
+                    self.draw_landmarks_with_specs(image, back_1020_points, front_color=(0,125,255), back_color=(0,255,0), thickness=opthick, radius=opsize)
+
                 
     def livefacemask(self, image, results, moving_averaged_Brain_LMs_list, iteration):
         if(results.face_landmarks is not None):
@@ -409,7 +355,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 atlas10_5 = copy.deepcopy(atlas10_5_5points)
 
-            # -------------- Linear Matrix ---------------
+            # -------------- Predict cranial points by fitted linear transformation ---------------
             pts=results.face_landmarks.landmark
             landmark_face_predictor_for_all = landmark_pb2.NormalizedLandmarkList(
                 landmark=[
@@ -427,38 +373,28 @@ class MainWindow(QtWidgets.QMainWindow):
             Amat, bvec = affinemap(np.array([atlas10_5_3points['nz'], atlas10_5_3points['lpa'], atlas10_5_3points['rpa'], atlas10_5_3points['iz'], atlas10_5_3points['cz']]),
                                    np.array([landmark2numpy(nz)[0], predicted_lpa[0], predicted_rpa[0], predicted_iz[0], predicted_cz[0]]))
 
-            lpa_to_plot = predicted_lpa
-            rpa_to_plot = predicted_rpa
-            # -------------- alternative method (old) ---------------
+            # -------------- alternative method ---------------
             if self.checkbox_old.isChecked():
                 pts=results.face_landmarks.landmark
                 landmark_face_subset = landmark_pb2.NormalizedLandmarkList(
-                    landmark=[
-                        pts[168],
-                        pts[10],
+                    landmark=[pts[168], pts[10],
                         {'x':2*pts[234].x-pts[227].x, 'y':2*pts[234].y-pts[227].y, 'z':2*pts[234].z-pts[227].z},
                         {'x':2*pts[454].x-pts[447].x, 'y':2*pts[454].y-pts[447].y, 'z':2*pts[454].z-pts[447].z}
                     ])
 
                 Amat, bvec = affinemap(np.array([atlas10_5['nz'], atlas10_5['sm'][1], atlas10_5['rpa'], atlas10_5['lpa']]),
                                        landmark2numpy(landmark_face_subset))
-                lpa_to_plot = landmark2numpy(landmark_face_subset)[2,:]
-                rpa_to_plot = landmark2numpy(landmark_face_subset)[3,:]
-            
             # -----------------------------------------------------
                 
             tmp = reg1020(Amat, bvec, [atlas10_5['lpa'], atlas10_5['rpa'], atlas10_5['iz']])
             iz = tmp[2]
 
-            brain10_5p = self.apply_registration_to_atlas_points(Amat, bvec, atlas10_5)
-                        
+            brain10_5p = apply_registration_to_atlas_points(Amat, bvec, atlas10_5)
             brain10_5p = self.apply_slider_adjustment(brain10_5p)
-
 
             brain10_5p_array = list(brain10_5p.values())
             brain10_5p_array = np.concatenate(brain10_5p_array, axis=0)
             
-
             moving_averaged_Brain_LMs_list.append(brain10_5p_array)
             moving_window_size = self.horizontalSlider_movavg.value()
         
@@ -487,15 +423,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QApplication.processEvents()
                 ret, frame = vid.read()
 
-                # Resize frame to current size
-                frame = self.resize_frame_keep_aspect(frame, self.label1.width(), self.label1.height())
-                
-                # Recolor Feed
-                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
-                image.flags.writeable = False    
-                # Make Detections
-                results = holistic.process(image)
+                frame = resize_frame_keep_aspect(frame, self.label1.width(), self.label1.height()) # Resize frame to current size
+                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Recolor Feed
+                image.flags.writeable = False        
+                results = holistic.process(image) # Mediapipe Processing
+            
                 # Recolor image back to BGR for rendering
                 image.flags.writeable = True   
                 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -510,27 +442,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     break
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-    def resize_frame_keep_aspect(self, frame, label_width, label_height):
-        height, width = frame.shape[:2]        
-        aspect_ratio = width / height
-        
-        if label_width / label_height > aspect_ratio:
-            new_height = label_height
-            new_width = int(new_height * aspect_ratio)
-        else:
-            new_width = label_width
-            new_height = int(new_width / aspect_ratio)
-        
-        new_width += new_width % 2
-        new_height += new_height % 2
-        
-        # Resize the frame
-        resized_frame = cv2.resize(frame, (new_width, new_height))
-        return resized_frame
     
 if __name__ == "__main__":
-    app = QtWidgets.QApplication.instance()  # Check if an instance already exists
-    if not app:  # Create a new instance if not
+    app = QtWidgets.QApplication.instance() 
+    if not app: 
         app = QtWidgets.QApplication(sys.argv)
 
     mainWin = MainWindow()
