@@ -31,6 +31,7 @@ atlas10_5_3points = jd.load("1020atlas/1020atlas_Colin27.json")
 atlas10_5_5points = jd.load("1020atlas/1020atlas_Colin27_5points.json")
 atlas10_5 = copy.deepcopy(atlas10_5_3points)
 
+# TOD: make to JData format
 lpa_mat = scipy.io.loadmat("Trained model/x_lpa_all.mat")
 rpa_mat = scipy.io.loadmat("Trained model/x_rpa_all.mat")
 iz_mat = scipy.io.loadmat("Trained model/x_iz_all.mat")
