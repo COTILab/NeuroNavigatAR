@@ -8,24 +8,17 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
 
 from .utils import (
-    affinemap,
-    reg1020,
-    landmark2numpy,
-    numpy2landmark,
-    my_reg1020,
     convert_cv_qt,
-    map_arrays_to_dict,
-    resize_frame_keep_aspect,
     apply_registration_to_atlas_points,
-    get_drawing_point_groups,
     update_moving_average,
     apply_alternative_method,
     apply_ml_prediction_method,
     draw_brain_landmarks,
+    apply_slider_adjustment,
+    process_video_stream,
     ATLAS_MAPPING,
 )
 
-mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
 mp_holistic = mp.solutions.holistic  # Mediapipe Solutions
 
 # Load atlas files
@@ -43,13 +36,12 @@ x_cz = np.array(jd.load("data/models/x_cz_all.json"))
 model_data = {"x_lpa": x_lpa, "x_rpa": x_rpa, "x_iz": x_iz, "x_cz": x_cz}
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class nnar(QtWidgets.QMainWindow):
 
     def __init__(self):
-        super(MainWindow, self).__init__()
+        super(nnar, self).__init__()
 
-        self.setObjectName("MainWindow")
-        # self.resize(1200, 600)
+        self.setObjectName("NeuroNavigatAR")
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setObjectName("centralwidget")
 
@@ -77,172 +69,189 @@ class MainWindow(QtWidgets.QMainWindow):
         left_layout.setAlignment(QtCore.Qt.AlignTop)
         left_layout.addStretch(2)
 
-        ###### Button Layout ######
-        button_layout = QtWidgets.QHBoxLayout()
+        self._setup_buttons(left_layout)
+        self._setup_sliders(left_layout)
+        self._setup_radio_buttons(left_layout)
+        self._setup_dropdown(left_layout)
+        self.dropdown.currentIndexChanged.connect(self.selectionchange)
+        self._setup_checkboxes(left_layout)
 
-        self.button = QtWidgets.QPushButton("Video On")
-        self.button.setIcon(QtGui.QIcon("assets/icons/on_button.png"))
-        self.button.setIconSize(QtCore.QSize(32, 32))
-        button_layout.addWidget(self.button)
+        left_layout.addStretch(6)
+        self.main_layout.addLayout(left_layout, 1)
 
-        self.button_close = QtWidgets.QPushButton("Video Stop")
-        self.button_close.setIcon(QtGui.QIcon("assets/icons/off_button.png"))
-        self.button_close.setIconSize(QtCore.QSize(32, 32))
-        button_layout.addWidget(self.button_close)
-        self.button.setToolTip("Click this button to start the video.")
-        self.button_close.setToolTip("Click this button to stop the video.")
+    def _setup_buttons(self, parent_layout):
+        """Setup video control buttons"""
+        layout = QtWidgets.QHBoxLayout()
 
-        left_layout.addLayout(button_layout)
-        left_layout.addStretch(1)
+        button_configs = [
+            (
+                "button",
+                "Video On",
+                "assets/icons/on_button.png",
+                "Click this button to start the video.",
+                self.loadImage,
+            ),
+            (
+                "button_close",
+                "Video Stop",
+                "assets/icons/off_button.png",
+                "Click this button to stop the video.",
+                self.closeVideo,
+            ),
+        ]
 
-        ###### Slider Layouts ######
-        # smcm adjustment slider
-        slider_layout = QtWidgets.QHBoxLayout()
-        self.label_text = QtWidgets.QLabel("Model\nPositions:")
-        slider_layout.addWidget(self.label_text)
+        for attr_name, text, icon_path, tooltip, callback in button_configs:
+            button = QtWidgets.QPushButton(text)
+            button.setIcon(QtGui.QIcon(icon_path))
+            button.setIconSize(QtCore.QSize(32, 32))
+            button.setToolTip(tooltip)
+            button.clicked.connect(callback)
+            setattr(self, attr_name, button)
+            layout.addWidget(button)
 
-        self.horizontalSlider_smcm = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.horizontalSlider_smcm.setMinimum(0)
-        self.horizontalSlider_smcm.setMaximum(100)
-        self.horizontalSlider_smcm.setValue(50)
-        self.horizontalSlider_smcm.setSingleStep(1)
-        slider_layout.addWidget(self.horizontalSlider_smcm)
+        parent_layout.addLayout(layout)
+        parent_layout.addStretch(1)
 
-        self.label_smcm = QtWidgets.QLabel("0.5")
-        slider_layout.addWidget(self.label_smcm)
-        left_layout.addLayout(slider_layout)
+    def _setup_sliders(self, parent_layout):
+        """Setup all slider controls"""
+        slider_configs = [
+            {
+                "name": "smcm",
+                "label": "Model\nPositions:",
+                "min_val": 0,
+                "max_val": 100,
+                "default": 50,
+                "display_val": "0.5",
+                "tooltip": "Adjust head model position vertically.",
+                "callback": self.scaletext_smcm,
+            },
+            {
+                "name": "movavg",
+                "label": "Moving\nAverage:",
+                "min_val": 1,
+                "max_val": 10,
+                "default": 1,
+                "display_val": "1",
+                "tooltip": "Window numbers used to average to increase stability.",
+                "callback": self.scaletext_movavg,
+            },
+            {
+                "name": "opsize",
+                "label": "Optode\nSize:",
+                "min_val": 1,
+                "max_val": 10,
+                "default": 3,
+                "display_val": "3",
+                "tooltip": "Size of displayed optodes.",
+                "callback": self.scaletext_opsize,
+            },
+        ]
 
-        # moving average slider
-        slider_layout_2 = QtWidgets.QHBoxLayout()
-        self.label_text2 = QtWidgets.QLabel("Moving\nAverage:")
-        slider_layout_2.addWidget(self.label_text2)
+        for config in slider_configs:
+            self._create_slider(parent_layout, config)
 
-        self.horizontalSlider_movavg = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.horizontalSlider_movavg.setMinimum(1)
-        self.horizontalSlider_movavg.setMaximum(10)
-        self.horizontalSlider_movavg.setValue(1)
-        slider_layout_2.addWidget(self.horizontalSlider_movavg)
+    def _create_slider(self, parent_layout, config):
+        """Create a single slider with label"""
+        layout = QtWidgets.QHBoxLayout()
 
-        self.label_movavg = QtWidgets.QLabel("1")
-        slider_layout_2.addWidget(self.label_movavg)
-        left_layout.addLayout(slider_layout_2)
+        # Label
+        label_text = QtWidgets.QLabel(config["label"])
+        label_text.setToolTip(config["tooltip"])
+        layout.addWidget(label_text)
 
-        # optode size slider
-        slider_layout_3 = QtWidgets.QHBoxLayout()
-        self.label_text3 = QtWidgets.QLabel("Optode\nSize:")
-        slider_layout_3.addWidget(self.label_text3)
+        # Slider
+        slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        slider.setMinimum(config["min_val"])
+        slider.setMaximum(config["max_val"])
+        slider.setValue(config["default"])
+        slider.setSingleStep(1)
+        slider.setToolTip(config["tooltip"])
+        slider.valueChanged.connect(config["callback"])
+        layout.addWidget(slider)
 
-        self.horizontalSlider_opsize = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.horizontalSlider_opsize.setMinimum(1)
-        self.horizontalSlider_opsize.setMaximum(10)
-        self.horizontalSlider_opsize.setValue(3)
-        slider_layout_3.addWidget(self.horizontalSlider_opsize)
+        # Value label
+        value_label = QtWidgets.QLabel(config["display_val"])
+        value_label.setToolTip(config["tooltip"])
+        layout.addWidget(value_label)
 
-        self.label_opsize = QtWidgets.QLabel("3")
-        slider_layout_3.addWidget(self.label_opsize)
-        left_layout.addLayout(slider_layout_3)
-
-        # add tooltip
-        self.horizontalSlider_smcm.setToolTip("Adjust head model position vertically.")
-        self.label_smcm.setToolTip("Adjust head model position vertically.")
-        self.label_text.setToolTip("Adjust head model position vertically.")
-        self.horizontalSlider_movavg.setToolTip(
-            "Window numbers used to average to increase stability."
+        # Store references
+        setattr(self, f"horizontalSlider_{config['name']}", slider)
+        setattr(self, f"label_{config['name']}", value_label)
+        setattr(
+            self,
+            f"label_text{'' if config['name'] == 'smcm' else '2' if config['name'] == 'movavg' else '3'}",
+            label_text,
         )
-        self.label_movavg.setToolTip(
-            "Window numbers used to average to increase stability."
-        )
-        self.label_text2.setToolTip(
-            "Window numbers used to average to increase stability."
-        )
-        left_layout.addStretch(1)
 
-        ###### Radio button Layout ######
-        radio_button_layout = QtWidgets.QHBoxLayout()
+        parent_layout.addLayout(layout)
+
+    def _setup_radio_buttons(self, parent_layout):
+        """Setup radio button group"""
+        layout = QtWidgets.QHBoxLayout()
+
         self.radioButton_3p = QtWidgets.QRadioButton("3 point")
         self.radioButton_5p = QtWidgets.QRadioButton("5 point")
         self.radioButton_5p.setChecked(True)
 
-        radio_button_layout.addWidget(self.radioButton_3p)
-        radio_button_layout.addWidget(self.radioButton_5p)
-        left_layout.addLayout(radio_button_layout)
-        left_layout.addStretch(1)
+        layout.addWidget(self.radioButton_3p)
+        layout.addWidget(self.radioButton_5p)
 
-        ###### Dropdown Layout ######
-        dropdown_layout = QtWidgets.QVBoxLayout()
+        parent_layout.addLayout(layout)
+        parent_layout.addStretch(1)
+
+    def _setup_dropdown(self, parent_layout):
+        """Setup atlas selection dropdown"""
+        layout = QtWidgets.QVBoxLayout()
+
         self.dropdown = QtWidgets.QComboBox()
-        self.dropdown.addItems(
-            [
-                "Atlas (Colin27)",
-                "Atlas (Age 20-24)",
-                "Atlas (Age 25-29)",
-                "Atlas (Age 30-34)",
-                "Atlas (Age 35-39)",
-                "Atlas (Age 40-44)",
-                "Atlas (Age 45-49)",
-                "Atlas (Age 50-54)",
-                "Atlas (Age 55-59)",
-                "Atlas (Age 60-64)",
-                "Atlas (Age 65-69)",
-                "Atlas (Age 70-74)",
-                "Atlas (Age 75-79)",
-                "Atlas (Age 80-84)",
-            ]
-        )
-        dropdown_layout.addWidget(self.dropdown)
-
+        self.dropdown.addItems(list(ATLAS_MAPPING.keys()))
         self.dropdown.setToolTip(
-            "Choose different altas model for providing head surface."
+            "Choose different atlas model for providing head surface."
         )
 
-        left_layout.addLayout(dropdown_layout)
-        left_layout.addStretch(1)
+        layout.addWidget(self.dropdown)
+        parent_layout.addLayout(layout)
+        parent_layout.addStretch(1)
 
-        ###### Checkbox Layout (alternative method) ######
-        checkbox_layout_head = QtWidgets.QHBoxLayout()
-        checkbox_layout_head.addStretch(1)
-        self.checkbox_backhead = QtWidgets.QCheckBox("Display posterior part optodes")
-        checkbox_layout_head.addWidget(self.checkbox_backhead)
-        checkbox_layout_head.addStretch(1)
-        left_layout.addLayout(checkbox_layout_head)
+    def _setup_checkboxes(self, parent_layout):
+        """Setup all checkbox controls"""
+        # Posterior display checkbox
+        self._create_centered_checkbox(
+            parent_layout, "checkbox_backhead", "Display posterior part optodes"
+        )
+        parent_layout.addStretch(1)
 
-        left_layout.addStretch(1)
+        # System checkboxes
+        checkbox_configs = [
+            ("Display 10-5 points", "checkbox_105", False),
+            ("Display 10-10 points", "checkbox_1010", True),
+            ("Display 10-20 points", "checkbox_1020", False),
+        ]
 
-        ###### Checkbox Layout (1020 point) ######
-        checkbox_layout = QtWidgets.QVBoxLayout()
-        checkbox_texts = {
-            "Display 10-5 points": "checkbox_105",
-            "Display 10-10 points": "checkbox_1010",
-            "Display 10-20 points": "checkbox_1020",
-        }
+        layout = QtWidgets.QVBoxLayout()
+        for text, attr_name, default_checked in checkbox_configs:
+            self._create_centered_checkbox(layout, attr_name, text, default_checked)
 
-        # Create checkboxes with specific names
-        for text, var_name in checkbox_texts.items():
-            hbox = QtWidgets.QHBoxLayout()
-            hbox.addStretch(1)  # Adds a stretchable space that adjusts with the window
-            setattr(
-                self, var_name, QtWidgets.QCheckBox(text)
-            )  # Dynamically create and assign checkbox to attribute
-            chk_box = getattr(self, var_name)
-            if var_name == "checkbox_1010":
-                chk_box.setChecked(True)
-            hbox.addWidget(chk_box)
-            hbox.addStretch(1)
-            checkbox_layout.addLayout(hbox)
-        left_layout.addLayout(checkbox_layout)
-        left_layout.addStretch(1)
+        parent_layout.addLayout(layout)
+        parent_layout.addStretch(1)
 
-        ###### Checkbox Layout (alternative method) ######
-        checkbox_layout2 = QtWidgets.QHBoxLayout()
-        checkbox_layout2.addStretch(1)
-        self.checkbox_old = QtWidgets.QCheckBox("Use alternative method")
-        checkbox_layout2.addWidget(self.checkbox_old)
-        checkbox_layout2.addStretch(1)
-        left_layout.addLayout(checkbox_layout2)
+        # Alternative method checkbox
+        self._create_centered_checkbox(
+            parent_layout, "checkbox_old", "Use alternative method"
+        )
 
-        left_layout.addStretch(6)
+    def _create_centered_checkbox(self, parent_layout, attr_name, text, checked=False):
+        """Create a centered checkbox"""
+        layout = QtWidgets.QHBoxLayout()
+        layout.addStretch(1)
 
-        self.main_layout.addLayout(left_layout, 1)
+        checkbox = QtWidgets.QCheckBox(text)
+        checkbox.setChecked(checked)
+        setattr(self, attr_name, checkbox)
+
+        layout.addWidget(checkbox)
+        layout.addStretch(1)
+        parent_layout.addLayout(layout)
 
     def setup_right_layout(self):
         # # Right side layout (Image Display)
@@ -259,6 +268,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.main_layout.addLayout(right_layout, 3)
 
+    def selectionchange(self, i):
+        """Select atlas based on dropdown menu"""
+        global atlas10_5, atlas10_5_3points, atlas10_5_5points  # Keep these for now
+        
+        selected_text = self.dropdown.itemText(i)
+        if selected_text in ATLAS_MAPPING:
+            atlas_file, atlas_file_5points = ATLAS_MAPPING[selected_text]
+            
+            # Update global variables (not ideal, but maintaining current structure)
+            import jdata as jd
+            atlas10_5 = jd.load(atlas_file)
+            atlas10_5_3points = jd.load(atlas_file)
+            if atlas_file_5points:  # Check if 5-point file exists
+                atlas10_5_5points = jd.load(atlas_file_5points)
+            else:
+                atlas10_5_5points = None
+
     def update_pixmap(self, width, height):
         pixmap = QtGui.QPixmap("assets/icons/NeuroNavigatAR_logo.png")
         scaled_pixmap = pixmap.scaled(
@@ -273,16 +299,7 @@ class MainWindow(QtWidgets.QMainWindow):
         new_width = self.size().width() // 3 * 2
         new_height = self.size().height() // 1.2
         self.update_pixmap(new_width, new_height)
-        super(MainWindow, self).resizeEvent(event)
-
-    def scaletext_x(self, value):
-        self.label_x.setText(str(value / 100))
-
-    def scaletext_y(self, value):
-        self.label_y.setText(str(value / 100))
-
-    def scaletext_z(self, value):
-        self.label_z.setText(str(value / 100))
+        super(nnar, self).resizeEvent(event)
 
     def scaletext_smcm(self, value):
         self.label_smcm.setText(str(value / 100))
@@ -295,33 +312,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeVideo(self):
         self.videoStatus = False
-
-    def selectionchange(self, i):
-        global atlas10_5, atlas10_5_3points, atlas10_5_5points
-        """Select atlas based on dropdown menu"""
-        selected_text = self.dropdown.itemText(i)
-        if selected_text in ATLAS_MAPPING:
-            atlas_file, atlas_file_5points = ATLAS_MAPPING[selected_text]
-            atlas10_5 = jd.load(atlas_file)
-            atlas10_5_3points = jd.load(atlas_file)
-            atlas10_5_5points = jd.load(atlas_file_5points)
-
-    def apply_slider_adjustment(self, brain10_5p):
-        """Apply slider adjustment to all point groups"""
-        adjustment = (self.horizontalSlider_smcm.value() - 50) / 100
-
-        adjusted_brain10_5p = {}
-        for key, points in brain10_5p.items():
-            if isinstance(points, (list, np.ndarray)) and len(points) > 0:
-                adjusted_points = copy.deepcopy(points)
-                for i in range(len(adjusted_points)):
-                    if len(adjusted_points[i]) >= 2:
-                        adjusted_points[i][1] = points[i][1] + adjustment
-                adjusted_brain10_5p[key] = adjusted_points
-            else:
-                adjusted_brain10_5p[key] = points
-
-        return adjusted_brain10_5p
 
     def Brain_LMs_plotting(self, brain10_5p, results, image):
         """Plot brain landmarks on image"""
@@ -358,7 +348,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
 
             brain10_5p = apply_registration_to_atlas_points(Amat, bvec, atlas10_5)
-            brain10_5p = self.apply_slider_adjustment(brain10_5p)
+            brain10_5p = apply_slider_adjustment(
+                brain10_5p, adjustment=(self.horizontalSlider_smcm.value() - 50) / 100
+            )
 
             # Handle moving average
             brain10_5p_array = np.concatenate(list(brain10_5p.values()), axis=0)
@@ -376,48 +368,36 @@ class MainWindow(QtWidgets.QMainWindow):
     def loadImage(self):
         self.videoStatus = True
         vid = cv2.VideoCapture(0)
-        iteration = 0
-        moving_averaged_Brain_LMs_list = []
 
+        # Define frame processor
+        def process_frame(image, results, iteration, state):
+            # Get or initialize moving average list
+            moving_list = state.get('moving_averaged_Brain_LMs_list', [])
+            
+            # Process landmarks
+            moving_list = self.livefacemask(image, results, moving_list, iteration)
+            
+            # Display the result
+            flipped_image = cv2.flip(image, 1)
+            self.label1.setPixmap(convert_cv_qt(flipped_image))
+            
+            # Return updated state
+            return {'moving_averaged_Brain_LMs_list': moving_list}
+            
+        # Define continue condition
+        def should_continue():
+            return self.videoStatus
+        
+        # Process video stream
         with mp_holistic.Holistic(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
             smooth_landmarks=True,
         ) as holistic:
-            while vid.isOpened():
-                QtWidgets.QApplication.processEvents()
-                ret, frame = vid.read()
-
-                frame = resize_frame_keep_aspect(
-                    frame, self.label1.width(), self.label1.height()
-                )  # Resize frame to current size
-                image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Recolor Feed
-                image.flags.writeable = False
-                results = holistic.process(image)  # Mediapipe Processing
-
-                # Recolor image back to BGR for rendering
-                image.flags.writeable = True
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
-                moving_averaged_Brain_LMs_list = self.livefacemask(
-                    image, results, moving_averaged_Brain_LMs_list, iteration
-                )
-                iteration += 1
-
-                FlippedImage = cv2.flip(image, 1)
-                self.label1.setPixmap(convert_cv_qt(FlippedImage))
-
-                if self.videoStatus == False:
-                    break
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
-
-
-if __name__ == "__main__":
-    app = QtWidgets.QApplication.instance()
-    if not app:
-        app = QtWidgets.QApplication(sys.argv)
-
-    mainWin = MainWindow()
-    mainWin.show()
-    app.exec_()
+            process_video_stream(
+                vid, 
+                holistic,
+                process_frame,
+                should_continue,
+                (self.label1.width(), self.label1.height())
+            )

@@ -3,7 +3,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from nnar.main_gui import MainWindow
+from nnar.main_gui import nnar
 from PyQt5 import QtWidgets
 
 if __name__ == "__main__":
@@ -11,6 +11,6 @@ if __name__ == "__main__":
     if not app:
         app = QtWidgets.QApplication(sys.argv)
 
-    mainWin = MainWindow()
+    mainWin = nnar()
     mainWin.show()
     app.exec_()

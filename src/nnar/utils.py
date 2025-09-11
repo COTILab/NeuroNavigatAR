@@ -3,6 +3,7 @@ import cv2
 import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
 from PyQt5 import QtCore, QtGui
+import copy
 
 mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
 
@@ -829,3 +830,75 @@ def draw_brain_landmarks(
                     opthick,
                     opsize,
                 )
+
+def apply_slider_adjustment(brain10_5p, adjustment) :
+    """Apply slider adjustment to all point groups"""
+
+    adjusted_brain10_5p = {}
+    for key, points in brain10_5p.items():
+        if isinstance(points, (list, np.ndarray)) and len(points) > 0:
+            adjusted_points = copy.deepcopy(points)
+            for i in range(len(adjusted_points)):
+                if len(adjusted_points[i]) >= 2:
+                    adjusted_points[i][1] = points[i][1] + adjustment
+            adjusted_brain10_5p[key] = adjusted_points
+        else:
+            adjusted_brain10_5p[key] = points
+
+    return adjusted_brain10_5p
+
+
+
+def process_video_stream(video_capture, holistic_processor, frame_processor_callback, 
+                        should_continue_callback, frame_size=(None, None)):
+    """
+    Process video stream with MediaPipe holistic detection.
+    
+    Args:
+        video_capture: OpenCV VideoCapture object
+        holistic_processor: MediaPipe Holistic processor
+        frame_processor_callback: Function to process each frame (image, results, iteration)
+        should_continue_callback: Function that returns True to continue processing
+        frame_size: Tuple (width, height) to resize frames, or (None, None) to skip resize
+    
+    Returns:
+        Final processed state from frame_processor_callback
+    """
+    iteration = 0
+    processing_state = {}
+    
+    while video_capture.isOpened():
+        # Allow GUI to process events (if Qt-based)
+        try:
+            from PyQt5 import QtWidgets
+            QtWidgets.QApplication.processEvents()
+        except ImportError:
+            pass
+            
+        ret, frame = video_capture.read()
+        if not ret:
+            break
+            
+        # Resize frame if size specified
+        if frame_size[0] is not None and frame_size[1] is not None:
+            frame = resize_frame_keep_aspect(frame, frame_size[0], frame_size[1])
+            
+        # Process with MediaPipe
+        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        results = holistic_processor.process(image)
+        
+        # Prepare image for rendering
+        image.flags.writeable = True
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        
+        # Call the frame processor callback
+        processing_state = frame_processor_callback(image, results, iteration, processing_state)
+        
+        iteration += 1
+        
+        # Check if we should continue
+        if not should_continue_callback():
+            break
+            
+    return processing_state
