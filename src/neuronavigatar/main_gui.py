@@ -6,12 +6,9 @@ import jdata as jd
 import copy
 from PyQt5 import QtCore, QtGui, QtWidgets
 import scipy.io
-
 import sys
 
-sys.path.append("GUI_functions")
-
-from nnar_utils import (
+from .utils import (
     affinemap,
     reg1020,
     landmark2numpy,
@@ -27,15 +24,18 @@ from nnar_utils import (
 
 mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
 mp_holistic = mp.solutions.holistic  # Mediapipe Solutions
-atlas10_5_3points = jd.load("1020atlas/1020atlas_Colin27.json")
-atlas10_5_5points = jd.load("1020atlas/1020atlas_Colin27_5points.json")
+
+# Load atlas files
+atlas10_5_3points = jd.load("data/atlases/1020atlas_Colin27.json")
+atlas10_5_5points = jd.load("data/atlases/1020atlas_Colin27_5points.json")
 atlas10_5 = copy.deepcopy(atlas10_5_3points)
 
 # TOD: make to JData format
-lpa_mat = scipy.io.loadmat("Trained model/x_lpa_all.mat")
-rpa_mat = scipy.io.loadmat("Trained model/x_rpa_all.mat")
-iz_mat = scipy.io.loadmat("Trained model/x_iz_all.mat")
-cz_mat = scipy.io.loadmat("Trained model/x_cz_all.mat")
+# Load trained models
+lpa_mat = scipy.io.loadmat("data/models/x_lpa_all.mat")
+rpa_mat = scipy.io.loadmat("data/models/x_rpa_all.mat")
+iz_mat = scipy.io.loadmat("data/models/x_iz_all.mat")
+cz_mat = scipy.io.loadmat("data/models/x_cz_all.mat")
 
 x_lpa = lpa_mat["x_lpa"]
 x_rpa = rpa_mat["x_rpa"]
@@ -80,12 +80,12 @@ class MainWindow(QtWidgets.QMainWindow):
         button_layout = QtWidgets.QHBoxLayout()
 
         self.button = QtWidgets.QPushButton("Video On")
-        self.button.setIcon(QtGui.QIcon("GUI_icon/on_button.png"))
+        self.button.setIcon(QtGui.QIcon("assets/icons/on_button.png"))
         self.button.setIconSize(QtCore.QSize(32, 32))
         button_layout.addWidget(self.button)
 
         self.button_close = QtWidgets.QPushButton("Video Stop")
-        self.button_close.setIcon(QtGui.QIcon("GUI_icon/off_button.png"))
+        self.button_close.setIcon(QtGui.QIcon("assets/icons/off_button.png"))
         self.button_close.setIconSize(QtCore.QSize(32, 32))
         button_layout.addWidget(self.button_close)
         self.button.setToolTip("Click this button to start the video.")
@@ -259,7 +259,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.addLayout(right_layout, 3)
 
     def update_pixmap(self, width, height):
-        pixmap = QtGui.QPixmap("GUI_icon/NeuroNavigatAR_logo.png")
+        pixmap = QtGui.QPixmap("assets/icons/NeuroNavigatAR_logo.png")
         scaled_pixmap = pixmap.scaled(
             int(width),
             int(height),
@@ -428,7 +428,28 @@ class MainWindow(QtWidgets.QMainWindow):
                 atlas10_5 = copy.deepcopy(atlas10_5_5points)
 
             # -------------- Predict cranial points by fitted linear transformation ---------------
-            FACE_LANDMARK_INDICES = [33, 133, 168, 362, 263, 4, 61, 291, 10, 332, 389, 323, 397, 378, 152, 149, 172, 93, 162, 103]
+            FACE_LANDMARK_INDICES = [
+                33,
+                133,
+                168,
+                362,
+                263,
+                4,
+                61,
+                291,
+                10,
+                332,
+                389,
+                323,
+                397,
+                378,
+                152,
+                149,
+                172,
+                93,
+                162,
+                103,
+            ]
 
             pts = results.face_landmarks.landmark
             landmark_face_predictor_for_all = landmark_pb2.NormalizedLandmarkList(

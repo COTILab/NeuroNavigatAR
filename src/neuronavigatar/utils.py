@@ -3,8 +3,85 @@ import cv2
 from mediapipe.framework.formats import landmark_pb2
 from PyQt5 import QtCore, QtGui
 
+# =============================================================================
+# Configuration and Constants
+# =============================================================================
+
+ATLAS_MAPPING = {
+    "Atlas (Colin27)": (
+        "data/atlases/1020atlas_Colin27.json",
+        "data/atlases/1020atlas_Colin27_5points.json",
+    ),
+    "Atlas (Age 20-24)": (
+        "data/atlases/1020atlas_20-24Years.json",
+        "data/atlases/1020atlas_20-24Years_5points.json",
+    ),
+    "Atlas (Age 25-29)": (
+        "data/atlases/1020atlas_25-29Years.json",
+        "data/atlases/1020atlas_25-29Years_5points.json",
+    ),
+    "Atlas (Age 30-34)": (
+        "data/atlases/1020atlas_30-34Years.json",
+        "data/atlases/1020atlas_30-34Years_5points.json",
+    ),
+    "Atlas (Age 35-39)": (
+        "data/atlases/1020atlas_35-39Years.json",
+        "data/atlases/1020atlas_35-39Years_5points.json",
+    ),
+    "Atlas (Age 40-44)": (
+        "data/atlases/1020atlas_40-44Years.json",
+        "data/atlases/1020atlas_40-44Years_5points.json",
+    ),
+    "Atlas (Age 45-49)": (
+        "data/atlases/1020atlas_45-49Years.json",
+        "data/atlases/1020atlas_45-49Years_5points.json",
+    ),
+    "Atlas (Age 50-54)": (
+        "data/atlases/1020atlas_50-54Years.json",
+        "data/atlases/1020atlas_50-54Years_5points.json",
+    ),
+    "Atlas (Age 55-59)": (
+        "data/atlases/1020atlas_55-59Years.json",
+        "data/atlases/1020atlas_55-59Years_5points.json",
+    ),
+    "Atlas (Age 60-64)": (
+        "data/atlases/1020atlas_60-64Years.json",
+        "data/atlases/1020atlas_60-64Years_5points.json",
+    ),
+    "Atlas (Age 65-69)": (
+        "data/atlases/1020atlas_65-69Years.json",
+        "data/atlases/1020atlas_65-69Years_5points.json",
+    ),
+    "Atlas (Age 70-74)": (
+        "data/atlases/1020atlas_70-74Years.json",
+        "data/atlases/1020atlas_70-74Years_5points.json",
+    ),
+    "Atlas (Age 75-79)": (
+        "data/atlases/1020atlas_75-79Years.json",
+        "data/atlases/1020atlas_75-79Years_5points.json",
+    ),
+    "Atlas (Age 80-84)": (
+        "data/atlases/1020atlas_80-84Years.json",
+        "data/atlases/1020atlas_80-84Years_5points.json",
+    ),
+}
+
+# =============================================================================
+# Mathematical and Registration Functions
+# =============================================================================
+
 
 def affinemap(pfrom, pto):
+    """
+    Calculate affine transformation mapping from source to target points.
+
+    Args:
+        pfrom (np.array): Source points array
+        pto (np.array): Target points array
+
+    Returns:
+        list: [A, b] where A is transformation matrix (3x3) and b is translation vector (3x1)
+    """
     bsubmat = np.eye(3)
     ptnum = len(pfrom)
     amat = np.zeros((ptnum * 3, 9))
@@ -20,29 +97,34 @@ def affinemap(pfrom, pto):
 
 
 def reg1020(Amat, bvec, pts):
+    """
+    Apply 10-20 registration transformation to points.
+
+    Args:
+        Amat (np.array): Transformation matrix (3x3)
+        bvec (np.array): Translation vector
+        pts (list): List of points to transform
+
+    Returns:
+        np.array: Transformed points
+    """
     newpt = np.matmul(Amat, (np.array(pts)).T)
     newpt = newpt + np.tile(bvec, (1, len(pts)))
     newpt = newpt.T
     return newpt
 
 
-def landmark2numpy(landmarks):
-    pts = []
-    for p in landmarks.landmark:
-        pts.append([p.x, p.y, p.z])
-    return np.array(pts)
-
-
-def numpy2landmark(pts):
-    landmarks = landmark_pb2.NormalizedLandmarkList(landmark=[])
-    for p in pts:
-        #          print(p)
-        lm = landmark_pb2.NormalizedLandmark(x=p[0], y=p[1], z=p[2])
-        landmarks.landmark.append(lm)
-    return landmarks
-
-
 def my_reg1020(predictor, x_pa):
+    """
+    Custom 10-20 registration using predictor and parameter array.
+
+    Args:
+        predictor (np.array): Predictor array
+        x_pa (np.array): Parameter array
+
+    Returns:
+        np.array: Predicted point coordinates
+    """
     bsubmat = np.eye(3)
     amat = np.zeros((3, x_pa.shape[0] - 3))
     ptnum = 1
@@ -53,9 +135,55 @@ def my_reg1020(predictor, x_pa):
     return predicted_p
 
 
+# =============================================================================
+# Data Conversion Utilities
+# =============================================================================
+
+
+def landmark2numpy(landmarks):
+    """
+    Convert MediaPipe landmarks to numpy array.
+
+    Args:
+        landmarks: MediaPipe landmark object
+
+    Returns:
+        np.array: Array of [x, y, z] coordinates
+    """
+    pts = []
+    for p in landmarks.landmark:
+        pts.append([p.x, p.y, p.z])
+    return np.array(pts)
+
+
+def numpy2landmark(pts):
+    """
+    Convert numpy array to MediaPipe landmarks format.
+
+    Args:
+        pts (np.array): Array of [x, y, z] coordinates
+
+    Returns:
+        landmark_pb2.NormalizedLandmarkList: MediaPipe landmark object
+    """
+    landmarks = landmark_pb2.NormalizedLandmarkList(landmark=[])
+    for p in pts:
+        lm = landmark_pb2.NormalizedLandmark(x=p[0], y=p[1], z=p[2])
+        landmarks.landmark.append(lm)
+    return landmarks
+
+
 def convert_cv_qt(cv_img):
-    # https://gist.github.com/docPhil99/ca4da12c9d6f29b9cea137b617c7b8b1
-    """Convert from an opencv image to QPixmap"""
+    """
+    Convert OpenCV image to QPixmap for PyQt display.
+
+    Args:
+        cv_img: OpenCV image (BGR format)
+
+    Returns:
+        QtGui.QPixmap: Qt-compatible pixmap scaled to 800x500
+    """
+    # Convert BGR to RGB
     rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
     h, w, ch = rgb_image.shape
     bytes_per_line = ch * w
@@ -66,50 +194,16 @@ def convert_cv_qt(cv_img):
     return QtGui.QPixmap.fromImage(p)
 
 
-def interpolate_datasets_dict(data1, data2, scale):
-    if set(data1.keys()) != set(data2.keys()):
-        raise ValueError("Both datasets must have the same keys")
-
-    interpolated_data = {}
-    for key in data1:
-        points1 = data1[key]
-        points2 = data2[key]
-
-        if isinstance(
-            points1[0], list
-        ):  # Check if the points are lists (for nested lists)
-            if len(points1) != len(points2):
-                raise ValueError(
-                    f"Key '{key}' must have the same number of points in both datasets"
-                )
-            interpolated_points = [
-                [(1 - scale) * p1 + scale * p2 for p1, p2 in zip(point1, point2)]
-                for point1, point2 in zip(points1, points2)
-            ]
-        else:
-            if len(points1) != len(points2):
-                raise ValueError(
-                    f"Key '{key}' must have the same number of points in both datasets"
-                )
-            interpolated_points = [
-                (1 - scale) * p1 + scale * p2 for p1, p2 in zip(points1, points2)
-            ]
-
-        interpolated_data[key] = interpolated_points
-
-    return interpolated_data
-
-
 def map_arrays_to_dict(array_list):
     """
-    Maps a list of arrays back into a dictionary given the keys and lengths of each array.
+    Maps a list of arrays back into a dictionary with predefined keys and lengths.
 
-    :param array_list: List of arrays to be mapped back to a dictionary.
-    :param keys: List of keys corresponding to each array.
-    :param lengths: List of lengths for each array.
-    :return: Dictionary with keys mapped to their corresponding arrays.
+    Args:
+        array_list (list): List of arrays to be mapped back to dictionary
+
+    Returns:
+        dict: Dictionary with electrode keys mapped to their corresponding arrays
     """
-
     keys = [
         "aal",
         "aar",
@@ -153,7 +247,7 @@ def map_arrays_to_dict(array_list):
         9,
         9,
         17,
-        17,
+        17,  # Basic electrode groups
         7,
         7,
         7,
@@ -167,6 +261,7 @@ def map_arrays_to_dict(array_list):
         7,
         7,
         7,
+        7,  # CAL/CAR groups
         7,
         7,
         7,
@@ -180,9 +275,9 @@ def map_arrays_to_dict(array_list):
         7,
         7,
         7,
-        7,
-        7,
+        7,  # CPL/CPR groups
     ]
+
     reversed_dict = {}
     start_index = 0
 
@@ -193,10 +288,27 @@ def map_arrays_to_dict(array_list):
     return reversed_dict
 
 
+# =============================================================================
+# Image Processing Utilities
+# =============================================================================
+
+
 def resize_frame_keep_aspect(frame, label_width, label_height):
+    """
+    Resize frame while maintaining aspect ratio to fit within label dimensions.
+
+    Args:
+        frame: Input image frame
+        label_width (int): Target label width
+        label_height (int): Target label height
+
+    Returns:
+        np.array: Resized frame maintaining aspect ratio
+    """
     height, width = frame.shape[:2]
     aspect_ratio = width / height
 
+    # Calculate new dimensions maintaining aspect ratio
     if label_width / label_height > aspect_ratio:
         new_height = label_height
         new_width = int(new_height * aspect_ratio)
@@ -204,6 +316,7 @@ def resize_frame_keep_aspect(frame, label_width, label_height):
         new_width = label_width
         new_height = int(new_width / aspect_ratio)
 
+    # Ensure even dimensions for video compatibility
     new_width += new_width % 2
     new_height += new_height % 2
 
@@ -212,8 +325,74 @@ def resize_frame_keep_aspect(frame, label_width, label_height):
     return resized_frame
 
 
+# =============================================================================
+# Data Processing and Interpolation
+# =============================================================================
+
+
+def interpolate_datasets_dict(data1, data2, scale):
+    """
+    Interpolate between two datasets with matching keys.
+
+    Args:
+        data1 (dict): First dataset
+        data2 (dict): Second dataset
+        scale (float): Interpolation factor (0.0 = data1, 1.0 = data2)
+
+    Returns:
+        dict: Interpolated dataset
+
+    Raises:
+        ValueError: If datasets don't have matching keys or point counts
+    """
+    if set(data1.keys()) != set(data2.keys()):
+        raise ValueError("Both datasets must have the same keys")
+
+    interpolated_data = {}
+    for key in data1:
+        points1 = data1[key]
+        points2 = data2[key]
+
+        if isinstance(points1[0], list):  # Handle nested lists
+            if len(points1) != len(points2):
+                raise ValueError(
+                    f"Key '{key}' must have the same number of points in both datasets"
+                )
+            interpolated_points = [
+                [(1 - scale) * p1 + scale * p2 for p1, p2 in zip(point1, point2)]
+                for point1, point2 in zip(points1, points2)
+            ]
+        else:  # Handle flat lists
+            if len(points1) != len(points2):
+                raise ValueError(
+                    f"Key '{key}' must have the same number of points in both datasets"
+                )
+            interpolated_points = [
+                (1 - scale) * p1 + scale * p2 for p1, p2 in zip(points1, points2)
+            ]
+
+        interpolated_data[key] = interpolated_points
+
+    return interpolated_data
+
+
+# =============================================================================
+# Atlas and Brain Processing
+# =============================================================================
+
+
 def apply_registration_to_atlas_points(Amat, bvec, atlas10_5):
-    """Apply registration to all atlas points at once"""
+    """
+    Apply registration transformation to all atlas points.
+
+    Args:
+        Amat (np.array): Transformation matrix
+        bvec (np.array): Translation vector
+        atlas10_5 (dict): Atlas data with electrode positions
+
+    Returns:
+        dict: Transformed atlas points for all electrode groups
+    """
     point_groups = [
         "aal",
         "aar",
@@ -259,70 +438,17 @@ def apply_registration_to_atlas_points(Amat, bvec, atlas10_5):
     return brain10_5p
 
 
-ATLAS_MAPPING = {
-    "Atlas (Colin27)": (
-        "1020atlas/1020atlas_Colin27.json",
-        "1020atlas/1020atlas_Colin27_5points.json",
-    ),
-    "Atlas (Age 20-24)": (
-        "1020atlas/1020atlas_20-24Years.json",
-        "1020atlas/1020atlas_20-24Years_5points.json",
-    ),
-    "Atlas (Age 25-29)": (
-        "1020atlas/1020atlas_25-29Years.json",
-        "1020atlas/1020atlas_25-29Years_5points.json",
-    ),
-    "Atlas (Age 30-34)": (
-        "1020atlas/1020atlas_30-34Years.json",
-        "1020atlas/1020atlas_30-34Years_5points.json",
-    ),
-    "Atlas (Age 35-39)": (
-        "1020atlas/1020atlas_35-39Years.json",
-        "1020atlas/1020atlas_35-39Years_5points.json",
-    ),
-    "Atlas (Age 40-44)": (
-        "1020atlas/1020atlas_40-44Years.json",
-        "1020atlas/1020atlas_40-44Years_5points.json",
-    ),
-    "Atlas (Age 45-49)": (
-        "1020atlas/1020atlas_45-49Years.json",
-        "1020atlas/1020atlas_45-49Years_5points.json",
-    ),
-    "Atlas (Age 50-54)": (
-        "1020atlas/1020atlas_50-54Years.json",
-        "1020atlas/1020atlas_50-54Years_5points.json",
-    ),
-    "Atlas (Age 55-59)": (
-        "1020atlas/1020atlas_55-59Years.json",
-        "1020atlas/1020atlas_55-59Years_5points.json",
-    ),
-    "Atlas (Age 60-64)": (
-        "1020atlas/1020atlas_60-64Years.json",
-        "1020atlas/1020atlas_60-64Years_5points.json",
-    ),
-    "Atlas (Age 65-69)": (
-        "1020atlas/1020atlas_65-69Years.json",
-        "1020atlas/1020atlas_65-69Years_5points.json",
-    ),
-    "Atlas (Age 70-74)": (
-        "1020atlas/1020atlas_70-74Years.json",
-        "1020atlas/1020atlas_70-74Years_5points.json",
-    ),
-    "Atlas (Age 75-79)": (
-        "1020atlas/1020atlas_75-79Years.json",
-        "1020atlas/1020atlas_75-79Years_5points.json",
-    ),
-    "Atlas (Age 80-84)": (
-        "1020atlas/1020atlas_80-84Years.json",
-        "1020atlas/1020atlas_80-84Years_5points.json",
-    ),
-}
-
-
-# utils/brain_processing.py
 def extract_eeg_system_points(brain10_5p):
-    """Extract and organize points for different EEG systems"""
-    # Indices configuration
+    """
+    Extract and organize points for different EEG systems (10-10 and 10-20).
+
+    Args:
+        brain10_5p (dict): Processed brain atlas points
+
+    Returns:
+        dict: Organized points for different EEG systems
+    """
+    # Indices configuration for different systems
     indices = {
         "1010": [0, 2, 4, 6, 8, 10, 12, 14, 16],
         "1020": [0, 4, 8, 12, 16],
@@ -332,10 +458,9 @@ def extract_eeg_system_points(brain10_5p):
         "cal_car_6": [3],
     }
 
-    # Extract points
     systems = {}
 
-    # 1010 system
+    # 10-10 system points
     cm_1010 = brain10_5p["cm"][indices["1010"]]
     sm_1010 = brain10_5p["sm"][indices["1010"]]
 
@@ -362,7 +487,7 @@ def extract_eeg_system_points(brain10_5p):
         "cpr_6": brain10_5p["cpr_6"][indices["cal_car_6"]],
     }
 
-    # 1020 system
+    # 10-20 system points
     cm_1020 = brain10_5p["cm"][indices["1020"]]
     sm_1020 = brain10_5p["sm"][indices["1020"]]
 
@@ -381,10 +506,18 @@ def extract_eeg_system_points(brain10_5p):
 
 
 def get_drawing_point_groups(brain10_5p):
-    """Return all drawing point groups as individual variables"""
+    """
+    Return all drawing point groups organized by EEG system and view (front/back).
+
+    Args:
+        brain10_5p (dict): Processed brain atlas points
+
+    Returns:
+        dict: Dictionary containing point groups for different systems and views
+    """
     systems = extract_eeg_system_points(brain10_5p)
 
-    # 10-5 system points
+    # 10-5 system points (full resolution)
     front_105_points = [
         brain10_5p["aal"],
         brain10_5p["aar"],
@@ -426,7 +559,7 @@ def get_drawing_point_groups(brain10_5p):
         brain10_5p["cpr_7"],
     ]
 
-    # 10-10 system points
+    # 10-10 system points (intermediate resolution)
     front_1010_points = [
         systems["1010"]["sm"],
         systems["1010"]["front_cm"],
@@ -452,7 +585,7 @@ def get_drawing_point_groups(brain10_5p):
         systems["1010"]["cpr_6"],
     ]
 
-    # 10-20 system points
+    # 10-20 system points (standard clinical resolution)
     front_1020_points = [
         systems["1020"]["sm"],
         systems["1020"]["aal"],
