@@ -1,3 +1,59 @@
+"""
+NeuroNavigatAR Utilities
+
+Core functionality for fNIRS/EEG electrode positioning using computer vision and machine learning.
+Provides utilities for 10-5, 10-10, and 10-20 electrode systems with both geometric and ML-based
+positioning methods.
+
+This module includes:
+- Mathematical transformations and registration algorithms
+- MediaPipe landmark processing
+- Atlas data manipulation and interpolation  
+- Real-time video processing utilities
+- Visualization and drawing functions
+
+Author: Fan-Yu Yen <yen.f at northeastern.edu>
+"""
+
+__all__ = [
+    # Constants
+    "ATLAS_MAPPING",
+    # Mathematical Functions
+    "affinemap",
+    "reg1020",
+    "my_reg1020",
+    # Data Conversion
+    "landmark2numpy",
+    "numpy2landmark",
+    "convert_cv_qt",
+    "map_arrays_to_dict",
+    # Image Processing
+    "resize_frame_keep_aspect",
+    # Data Processing
+    "interpolate_datasets_dict",
+    # Atlas Processing
+    "apply_registration_to_atlas_points",
+    "get_drawing_point_groups",
+    # Face Landmark Processing
+    "extract_face_landmarks",
+    "predict_cranial_points",
+    # Transformation Methods
+    "apply_alternative_method",
+    "apply_ml_prediction_method",
+    # Moving Average & Adjustments
+    "update_moving_average",
+    "apply_slider_adjustment",
+    # Visualization
+    "draw_landmarks_with_specs",
+    "draw_brain_landmarks",
+    # Video Processing
+    "process_video_stream",
+]
+
+# =============================================================================
+# Dependent Libraries
+# =============================================================================
+
 import numpy as np
 import cv2
 import mediapipe as mp
@@ -11,6 +67,7 @@ mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
 # Configuration and Constants
 # =============================================================================
 
+# Atlas file paths
 ATLAS_MAPPING = {
     "Atlas (Colin27)": (
         "data/atlases/1020atlas_Colin27.json",
@@ -69,6 +126,116 @@ ATLAS_MAPPING = {
         "data/atlases/1020atlas_80-84Years_5points.json",
     ),
 }
+
+# EEG System Configurations
+EEG_SYSTEM_INDICES = {
+    "1010": [0, 2, 4, 6, 8, 10, 12, 14, 16],
+    "1020": [0, 4, 8, 12, 16],
+    "aal_aar_1010": [1, 3, 5, 7],
+    "aal_aar_1020": [3, 7],
+    "cal_car": [1, 3, 5],
+    "cal_car_6": [3],
+}
+
+# Face landmark indices for ML prediction
+FACE_LANDMARK_INDICES = [
+    33,
+    133,
+    168,
+    362,
+    263,
+    4,
+    61,
+    291,
+    10,
+    332,
+    389,
+    323,
+    397,
+    378,
+    152,
+    149,
+    172,
+    93,
+    162,
+    103,
+]
+
+# Electrode group keys and lengths
+ELECTRODE_KEYS = [
+    "aal",
+    "aar",
+    "apl",
+    "apr",
+    "sm",
+    "cm",
+    "cal_1",
+    "car_1",
+    "cal_2",
+    "car_2",
+    "cal_3",
+    "car_3",
+    "cal_4",
+    "car_4",
+    "cal_5",
+    "car_5",
+    "cal_6",
+    "car_6",
+    "cal_7",
+    "car_7",
+    "cpl_1",
+    "cpr_1",
+    "cpl_2",
+    "cpr_2",
+    "cpl_3",
+    "cpr_3",
+    "cpl_4",
+    "cpr_4",
+    "cpl_5",
+    "cpr_5",
+    "cpl_6",
+    "cpr_6",
+    "cpl_7",
+    "cpr_7",
+]
+
+ELECTRODE_LENGTHS = [
+    9,
+    9,
+    9,
+    9,
+    17,
+    17,  # Basic electrode groups
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,  # CAL/CAR groups
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,
+    7,  # CPL/CPR groups
+]
+
 
 # =============================================================================
 # Mathematical and Registration Functions
@@ -208,84 +375,11 @@ def map_arrays_to_dict(array_list):
     Returns:
         dict: Dictionary with electrode keys mapped to their corresponding arrays
     """
-    keys = [
-        "aal",
-        "aar",
-        "apl",
-        "apr",
-        "sm",
-        "cm",
-        "cal_1",
-        "car_1",
-        "cal_2",
-        "car_2",
-        "cal_3",
-        "car_3",
-        "cal_4",
-        "car_4",
-        "cal_5",
-        "car_5",
-        "cal_6",
-        "car_6",
-        "cal_7",
-        "car_7",
-        "cpl_1",
-        "cpr_1",
-        "cpl_2",
-        "cpr_2",
-        "cpl_3",
-        "cpr_3",
-        "cpl_4",
-        "cpr_4",
-        "cpl_5",
-        "cpr_5",
-        "cpl_6",
-        "cpr_6",
-        "cpl_7",
-        "cpr_7",
-    ]
-
-    lengths = [
-        9,
-        9,
-        9,
-        9,
-        17,
-        17,  # Basic electrode groups
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,  # CAL/CAR groups
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,  # CPL/CPR groups
-    ]
 
     reversed_dict = {}
     start_index = 0
 
-    for key, length in zip(keys, lengths):
+    for key, length in zip(ELECTRODE_KEYS, ELECTRODE_LENGTHS):
         reversed_dict[key] = array_list[start_index : start_index + length]
         start_index += length
 
@@ -397,45 +491,8 @@ def apply_registration_to_atlas_points(Amat, bvec, atlas10_5):
     Returns:
         dict: Transformed atlas points for all electrode groups
     """
-    point_groups = [
-        "aal",
-        "aar",
-        "apl",
-        "apr",
-        "cm",
-        "sm",
-        "cal_1",
-        "car_1",
-        "cal_2",
-        "car_2",
-        "cal_3",
-        "car_3",
-        "cal_4",
-        "car_4",
-        "cal_5",
-        "car_5",
-        "cal_6",
-        "car_6",
-        "cal_7",
-        "car_7",
-        "cpl_1",
-        "cpr_1",
-        "cpl_2",
-        "cpr_2",
-        "cpl_3",
-        "cpr_3",
-        "cpl_4",
-        "cpr_4",
-        "cpl_5",
-        "cpr_5",
-        "cpl_6",
-        "cpr_6",
-        "cpl_7",
-        "cpr_7",
-    ]
-
     brain10_5p = {}
-    for group in point_groups:
+    for group in ELECTRODE_KEYS:
         if group in atlas10_5:
             brain10_5p[group] = reg1020(Amat, bvec, atlas10_5[group])
 
@@ -452,58 +509,48 @@ def extract_eeg_system_points(brain10_5p):
     Returns:
         dict: Organized points for different EEG systems
     """
-    # Indices configuration for different systems
-    indices = {
-        "1010": [0, 2, 4, 6, 8, 10, 12, 14, 16],
-        "1020": [0, 4, 8, 12, 16],
-        "aal_aar_1010": [1, 3, 5, 7],
-        "aal_aar_1020": [3, 7],
-        "cal_car": [1, 3, 5],
-        "cal_car_6": [3],
-    }
-
     systems = {}
 
     # 10-10 system points
-    cm_1010 = brain10_5p["cm"][indices["1010"]]
-    sm_1010 = brain10_5p["sm"][indices["1010"]]
+    cm_1010 = brain10_5p["cm"][EEG_SYSTEM_INDICES["1010"]]
+    sm_1010 = brain10_5p["sm"][EEG_SYSTEM_INDICES["1010"]]
 
     systems["1010"] = {
         "cm": cm_1010,
         "sm": sm_1010,
         "front_cm": cm_1010[: len(cm_1010) // 2 + 1],
         "back_cm": cm_1010[len(cm_1010) // 2 + 1 :],
-        "aal": brain10_5p["aal"][indices["aal_aar_1010"]],
-        "aar": brain10_5p["aar"][indices["aal_aar_1010"]],
-        "apl": brain10_5p["apl"][indices["aal_aar_1010"]],
-        "apr": brain10_5p["apr"][indices["aal_aar_1010"]],
-        "cal_2": brain10_5p["cal_2"][indices["cal_car"]],
-        "car_2": brain10_5p["car_2"][indices["cal_car"]],
-        "cal_4": brain10_5p["cal_4"][indices["cal_car"]],
-        "car_4": brain10_5p["car_4"][indices["cal_car"]],
-        "cal_6": brain10_5p["cal_6"][indices["cal_car_6"]],
-        "car_6": brain10_5p["car_6"][indices["cal_car_6"]],
-        "cpl_2": brain10_5p["cpl_2"][indices["cal_car"]],
-        "cpr_2": brain10_5p["cpr_2"][indices["cal_car"]],
-        "cpl_4": brain10_5p["cpl_4"][indices["cal_car"]],
-        "cpr_4": brain10_5p["cpr_4"][indices["cal_car"]],
-        "cpl_6": brain10_5p["cpl_6"][indices["cal_car_6"]],
-        "cpr_6": brain10_5p["cpr_6"][indices["cal_car_6"]],
+        "aal": brain10_5p["aal"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
+        "aar": brain10_5p["aar"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
+        "apl": brain10_5p["apl"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
+        "apr": brain10_5p["apr"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
+        "cal_2": brain10_5p["cal_2"][EEG_SYSTEM_INDICES["cal_car"]],
+        "car_2": brain10_5p["car_2"][EEG_SYSTEM_INDICES["cal_car"]],
+        "cal_4": brain10_5p["cal_4"][EEG_SYSTEM_INDICES["cal_car"]],
+        "car_4": brain10_5p["car_4"][EEG_SYSTEM_INDICES["cal_car"]],
+        "cal_6": brain10_5p["cal_6"][EEG_SYSTEM_INDICES["cal_car_6"]],
+        "car_6": brain10_5p["car_6"][EEG_SYSTEM_INDICES["cal_car_6"]],
+        "cpl_2": brain10_5p["cpl_2"][EEG_SYSTEM_INDICES["cal_car"]],
+        "cpr_2": brain10_5p["cpr_2"][EEG_SYSTEM_INDICES["cal_car"]],
+        "cpl_4": brain10_5p["cpl_4"][EEG_SYSTEM_INDICES["cal_car"]],
+        "cpr_4": brain10_5p["cpr_4"][EEG_SYSTEM_INDICES["cal_car"]],
+        "cpl_6": brain10_5p["cpl_6"][EEG_SYSTEM_INDICES["cal_car_6"]],
+        "cpr_6": brain10_5p["cpr_6"][EEG_SYSTEM_INDICES["cal_car_6"]],
     }
 
     # 10-20 system points
-    cm_1020 = brain10_5p["cm"][indices["1020"]]
-    sm_1020 = brain10_5p["sm"][indices["1020"]]
+    cm_1020 = brain10_5p["cm"][EEG_SYSTEM_INDICES["1020"]]
+    sm_1020 = brain10_5p["sm"][EEG_SYSTEM_INDICES["1020"]]
 
     systems["1020"] = {
         "cm": cm_1020,
         "sm": sm_1020,
         "front_cm": cm_1020[: len(cm_1020) // 2 + 1],
         "back_cm": cm_1020[len(cm_1020) // 2 + 1 :],
-        "aal": brain10_5p["aal"][indices["aal_aar_1020"]],
-        "aar": brain10_5p["aar"][indices["aal_aar_1020"]],
-        "apl": brain10_5p["apl"][indices["aal_aar_1020"]],
-        "apr": brain10_5p["apr"][indices["aal_aar_1020"]],
+        "aal": brain10_5p["aal"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
+        "aar": brain10_5p["aar"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
+        "apl": brain10_5p["apl"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
+        "apr": brain10_5p["apr"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
     }
 
     return systems
@@ -613,27 +660,70 @@ def get_drawing_point_groups(brain10_5p):
     }
 
 
-def update_moving_average(data_list, new_data, window_size):
-    """Update moving average list and return averaged result if ready"""
-    data_list.append(new_data)
+# =============================================================================
+# Face Landmark Processing Functions
+# =============================================================================
 
-    if len(data_list) > window_size:
-        data_list = data_list[-window_size:]
 
-    if len(data_list) == window_size:
-        averaged_data = np.mean(np.stack(data_list, axis=0), axis=0)
-        return map_arrays_to_dict(averaged_data), data_list
+def extract_face_landmarks(results, landmark_indices):
+    """
+    Extract specific face landmarks for ML prediction.
 
-    return None, data_list
+    Args:
+        results: MediaPipe results object containing detected landmarks
+        landmark_indices (list): List of landmark indices to extract
+
+    Returns:
+        np.array: Reshaped predictor array (1, n_features) for ML models
+    """
+    pts = results.face_landmarks.landmark
+    landmark_face_predictor = landmark_pb2.NormalizedLandmarkList(
+        landmark=[pts[i] for i in landmark_indices]
+    )
+    predictor = landmark2numpy(landmark_face_predictor)
+    return np.reshape(predictor, (1, -1))
+
+
+def predict_cranial_points(predictor, model_data):
+    """
+    Predict cranial landmark positions using trained ML models.
+
+    Args:
+        predictor (np.array): Face landmark features for prediction
+        model_data (dict): Dictionary containing trained models (x_lpa, x_rpa, x_iz, x_cz)
+
+    Returns:
+        dict: Dictionary with predicted cranial points (lpa, rpa, iz, cz)
+    """
+    return {
+        "lpa": np.transpose(my_reg1020(predictor, model_data["x_lpa"])),
+        "rpa": np.transpose(my_reg1020(predictor, model_data["x_rpa"])),
+        "iz": np.transpose(my_reg1020(predictor, model_data["x_iz"])),
+        "cz": np.transpose(my_reg1020(predictor, model_data["x_cz"])),
+    }
+
+
+# =============================================================================
+# Transformation Method Applications
+# =============================================================================
 
 
 def apply_alternative_method(results, atlas10_5):
-    """Apply alternative transformation method"""
+    """
+    Apply alternative geometric transformation method using face landmarks.
+
+    Args:
+        results: MediaPipe results object
+        atlas10_5 (dict): Atlas data for transformation reference points
+
+    Returns:
+        tuple: (Amat, bvec) transformation matrix and translation vector
+    """
     pts = results.face_landmarks.landmark
     landmark_face_subset = landmark_pb2.NormalizedLandmarkList(
         landmark=[
-            pts[168],
-            pts[10],
+            pts[168],  # Nasion
+            pts[10],  # Upper lip center
             {
                 "x": 2 * pts[234].x - pts[227].x,
                 "y": 2 * pts[234].y - pts[227].y,
@@ -660,61 +750,18 @@ def apply_alternative_method(results, atlas10_5):
     )
 
 
-def extract_face_landmarks(results, landmark_indices):
-    """Extract specific face landmarks"""
-    pts = results.face_landmarks.landmark
-    landmark_face_predictor = landmark_pb2.NormalizedLandmarkList(
-        landmark=[pts[i] for i in landmark_indices]
-    )
-    predictor = landmark2numpy(landmark_face_predictor)
-    return np.reshape(predictor, (1, -1))
-
-
-def predict_cranial_points(predictor, model_data):
-    """Predict cranial points using models"""
-    return {
-        "lpa": np.transpose(my_reg1020(predictor, model_data["x_lpa"])),
-        "rpa": np.transpose(my_reg1020(predictor, model_data["x_rpa"])),
-        "iz": np.transpose(my_reg1020(predictor, model_data["x_iz"])),
-        "cz": np.transpose(my_reg1020(predictor, model_data["x_cz"])),
-    }
-
-
 def apply_ml_prediction_method(results, atlas10_5_3points, model_data):
     """
     Apply ML-based prediction method to calculate transformation matrix.
 
     Args:
         results: MediaPipe results object
-        atlas10_5_3points: 3-point atlas data
-        model_data: Dictionary containing ML models (x_lpa, x_rpa, x_iz, x_cz)
+        atlas10_5_3points (dict): 3-point atlas data for reference
+        model_data (dict): Dictionary containing ML models (x_lpa, x_rpa, x_iz, x_cz)
 
     Returns:
         tuple: (Amat, bvec) transformation matrix and translation vector
     """
-    # Define face landmark indices for prediction
-    FACE_LANDMARK_INDICES = [
-        33,
-        133,
-        168,
-        362,
-        263,
-        4,
-        61,
-        291,
-        10,
-        332,
-        389,
-        323,
-        397,
-        378,
-        152,
-        149,
-        172,
-        93,
-        162,
-        103,
-    ]
 
     # Extract face landmarks for prediction
     predictor = extract_face_landmarks(results, FACE_LANDMARK_INDICES)
@@ -751,13 +798,86 @@ def apply_ml_prediction_method(results, atlas10_5_3points, model_data):
     return affinemap(source_points, target_points)
 
 
+# =============================================================================
+# Data Processing and Moving Average
+# =============================================================================
+
+
+def update_moving_average(data_list, new_data, window_size):
+    """
+    Update moving average list and return averaged result when window is full.
+
+    Args:
+        data_list (list): Current list of data arrays for averaging
+        new_data (np.array): New data array to add to the moving average
+        window_size (int): Size of the moving average window
+
+    Returns:
+        tuple: (averaged_result, updated_data_list) where averaged_result is
+               dict or None, and updated_data_list is the maintained window
+    """
+    data_list.append(new_data)
+
+    # Maintain window size
+    if len(data_list) > window_size:
+        data_list = data_list[-window_size:]
+
+    # Return averaged result when window is full
+    if len(data_list) == window_size:
+        averaged_data = np.mean(np.stack(data_list, axis=0), axis=0)
+        return map_arrays_to_dict(averaged_data), data_list
+
+    return None, data_list
+
+
+def apply_slider_adjustment(brain10_5p, adjustment):
+    """
+    Apply vertical position adjustment to all brain electrode points.
+
+    Args:
+        brain10_5p (dict): Dictionary of brain electrode positions
+        adjustment (float): Vertical adjustment value to apply to y-coordinates
+
+    Returns:
+        dict: Dictionary with adjusted electrode positions
+    """
+    adjusted_brain10_5p = {}
+    for key, points in brain10_5p.items():
+        if isinstance(points, (list, np.ndarray)) and len(points) > 0:
+            adjusted_points = copy.deepcopy(points)
+            for i in range(len(adjusted_points)):
+                if len(adjusted_points[i]) >= 2:
+                    adjusted_points[i][1] = points[i][1] + adjustment
+            adjusted_brain10_5p[key] = adjusted_points
+        else:
+            adjusted_brain10_5p[key] = points
+
+    return adjusted_brain10_5p
+
+
+# =============================================================================
+# Visualization and Drawing Functions
+# =============================================================================
+
+
 def draw_landmarks_with_specs(
     image, points_list, front_color, back_color=None, thickness=None, radius=None
 ):
-    """Draw landmarks with specified colors and styles"""
+    """
+    Draw landmarks on image with specified visual properties.
+
+    Args:
+        image: OpenCV image to draw on
+        points_list (list): List of point arrays to draw
+        front_color (tuple): RGB color for front-facing landmarks
+        back_color (tuple, optional): RGB color for back-facing landmarks
+        thickness (int, optional): Line thickness for drawing
+        radius (int, optional): Circle radius for landmark points
+    """
     back_color = back_color or front_color
 
     if points_list and len(points_list) > 0:
+        # Filter out empty or invalid points
         valid_points = [p for p in points_list if p is not None and len(p) > 0]
         if valid_points:
             combined_points = np.vstack(valid_points)
@@ -777,41 +897,52 @@ def draw_landmarks_with_specs(
 def draw_brain_landmarks(
     image, brain10_5p, results, checkbox_states, opsize, opthick, show_back
 ):
-    """Draw brain landmarks based on checkbox states"""
+    """
+    Draw brain electrode landmarks on image based on system selection.
+
+    Args:
+        image: OpenCV image to draw on
+        brain10_5p (dict): Processed brain atlas points
+        results: MediaPipe results object
+        checkbox_states (dict): Dictionary of checkbox states for different systems
+        opsize (int): Size of electrode markers
+        opthick (int): Thickness of electrode markers
+        show_back (bool): Whether to show posterior electrode positions
+    """
     if results.face_landmarks is None:
         return
 
     points = get_drawing_point_groups(brain10_5p)
 
-    # Configuration for different systems
+    # Configuration for different EEG systems
     systems_config = {
         "105": {
             "checkbox": checkbox_states.get("105", False),
             "front_points": points["front_105"],
             "back_points": points["back_105"],
-            "front_color": (255, 255, 0),
-            "back_color": (0, 255, 0),
+            "front_color": (255, 255, 0),  # Yellow
+            "back_color": (0, 255, 0),  # Green
         },
         "1010": {
             "checkbox": checkbox_states.get("1010", False),
             "front_points": points["front_1010"],
             "back_points": points["back_1010"],
-            "front_color": (0, 255, 0),
-            "back_color": (0, 255, 0),
+            "front_color": (0, 255, 0),  # Green
+            "back_color": (0, 255, 0),  # Green
         },
         "1020": {
             "checkbox": checkbox_states.get("1020", False),
             "front_points": points["front_1020"],
             "back_points": points["back_1020"],
-            "front_color": (0, 125, 255),
-            "back_color": (0, 255, 0),
+            "front_color": (0, 125, 255),  # Orange-red
+            "back_color": (0, 255, 0),  # Green
         },
     }
 
     # Draw each system if enabled
     for system_name, config in systems_config.items():
         if config["checkbox"]:
-            # Draw front points
+            # Draw front electrode positions
             draw_landmarks_with_specs(
                 image,
                 config["front_points"],
@@ -820,7 +951,7 @@ def draw_brain_landmarks(
                 opthick,
                 opsize,
             )
-            # Draw back points if enabled
+            # Draw back electrode positions if enabled
             if show_back:
                 draw_landmarks_with_specs(
                     image,
@@ -831,74 +962,70 @@ def draw_brain_landmarks(
                     opsize,
                 )
 
-def apply_slider_adjustment(brain10_5p, adjustment) :
-    """Apply slider adjustment to all point groups"""
 
-    adjusted_brain10_5p = {}
-    for key, points in brain10_5p.items():
-        if isinstance(points, (list, np.ndarray)) and len(points) > 0:
-            adjusted_points = copy.deepcopy(points)
-            for i in range(len(adjusted_points)):
-                if len(adjusted_points[i]) >= 2:
-                    adjusted_points[i][1] = points[i][1] + adjustment
-            adjusted_brain10_5p[key] = adjusted_points
-        else:
-            adjusted_brain10_5p[key] = points
-
-    return adjusted_brain10_5p
+# =============================================================================
+# Video Processing Utilities
+# =============================================================================
 
 
-
-def process_video_stream(video_capture, holistic_processor, frame_processor_callback, 
-                        should_continue_callback, frame_size=(None, None)):
+def process_video_stream(
+    video_capture,
+    holistic_processor,
+    frame_processor_callback,
+    should_continue_callback,
+    frame_size=(None, None),
+):
     """
-    Process video stream with MediaPipe holistic detection.
-    
+    Process video stream with MediaPipe holistic detection and custom frame processing.
+
     Args:
         video_capture: OpenCV VideoCapture object
-        holistic_processor: MediaPipe Holistic processor
-        frame_processor_callback: Function to process each frame (image, results, iteration)
+        holistic_processor: MediaPipe Holistic processor instance
+        frame_processor_callback: Function to process each frame (image, results, iteration, state)
         should_continue_callback: Function that returns True to continue processing
-        frame_size: Tuple (width, height) to resize frames, or (None, None) to skip resize
-    
+        frame_size (tuple): (width, height) to resize frames, or (None, None) to skip resize
+
     Returns:
-        Final processed state from frame_processor_callback
+        dict: Final processing state from frame_processor_callback
     """
     iteration = 0
     processing_state = {}
-    
+
     while video_capture.isOpened():
-        # Allow GUI to process events (if Qt-based)
+        # Allow GUI to process events (Qt framework compatibility)
         try:
             from PyQt5 import QtWidgets
+
             QtWidgets.QApplication.processEvents()
         except ImportError:
             pass
-            
+
         ret, frame = video_capture.read()
         if not ret:
             break
-            
-        # Resize frame if size specified
+
+        # Resize frame if dimensions specified
         if frame_size[0] is not None and frame_size[1] is not None:
             frame = resize_frame_keep_aspect(frame, frame_size[0], frame_size[1])
-            
-        # Process with MediaPipe
+
+        # Process frame with MediaPipe
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image.flags.writeable = False
         results = holistic_processor.process(image)
-        
+
         # Prepare image for rendering
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        
-        # Call the frame processor callback
-        processing_state = frame_processor_callback(image, results, iteration, processing_state)
-        
+
+        # Execute custom frame processing
+        processing_state = frame_processor_callback(
+            image, results, iteration, processing_state
+        )
+
         iteration += 1
-        
-        # Check if we should continue
+
+        # Check continuation condition
         if not should_continue_callback():
             break
-            
+
     return processing_state
