@@ -18,6 +18,10 @@ from .utils import (
     resize_frame_keep_aspect,
     apply_registration_to_atlas_points,
     get_drawing_point_groups,
+    update_moving_average,
+    apply_alternative_method,
+    apply_ml_prediction_method,
+    draw_brain_landmarks,
     ATLAS_MAPPING,
 )
 
@@ -35,11 +39,15 @@ x_rpa = np.array(jd.load("data/models/x_rpa_all.json"))
 x_iz = np.array(jd.load("data/models/x_iz_all.json"))
 x_cz = np.array(jd.load("data/models/x_cz_all.json"))
 
+# Create model_data dictionary
+model_data = {"x_lpa": x_lpa, "x_rpa": x_rpa, "x_iz": x_iz, "x_cz": x_cz}
+
 
 class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
         super(MainWindow, self).__init__()
+
         self.setObjectName("MainWindow")
         # self.resize(1200, 600)
         self.centralwidget = QtWidgets.QWidget(self)
@@ -315,237 +323,53 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return adjusted_brain10_5p
 
-    def draw_landmarks_with_specs(
-        self,
-        image,
-        points_list,
-        front_color,
-        back_color=None,
-        thickness=None,
-        radius=None,
-    ):
-        """Helper to reduce repetitive mp_drawing calls"""
-        thickness = thickness or (self.horizontalSlider_opsize.value() - 1)
-        radius = radius or self.horizontalSlider_opsize.value()
-        back_color = back_color or front_color
-
-        if points_list and len(points_list) > 0:
-            # Filter out empty points
-            valid_points = [p for p in points_list if p is not None and len(p) > 0]
-            if valid_points:
-                combined_points = np.vstack(valid_points)
-                mp_drawing.draw_landmarks(
-                    image,
-                    numpy2landmark(combined_points),
-                    None,
-                    mp_drawing.DrawingSpec(
-                        color=front_color, thickness=thickness, circle_radius=radius
-                    ),
-                    mp_drawing.DrawingSpec(
-                        color=back_color, thickness=thickness, circle_radius=radius
-                    ),
-                )
-
     def Brain_LMs_plotting(self, brain10_5p, results, image):
-        points = get_drawing_point_groups(brain10_5p)
+        """Plot brain landmarks on image"""
+        checkbox_states = {
+            "105": self.checkbox_105.isChecked(),
+            "1010": self.checkbox_1010.isChecked(),
+            "1020": self.checkbox_1020.isChecked(),
+        }
 
         opsize = self.horizontalSlider_opsize.value()
         opthick = opsize - 1
+        show_back = self.checkbox_backhead.isChecked()
 
-        if results.face_landmarks is not None:
-            # 10-5 system
-            if self.checkbox_105.isChecked():
-                self.draw_landmarks_with_specs(
-                    image,
-                    points["front_105"],
-                    (255, 255, 0),
-                    (0, 255, 0),
-                    opthick,
-                    opsize,
-                )
-                if self.checkbox_backhead.isChecked():
-                    self.draw_landmarks_with_specs(
-                        image,
-                        points["back_105"],
-                        (255, 255, 0),
-                        (0, 255, 0),
-                        opthick,
-                        opsize,
-                    )
-
-            # 10-10 system
-            if self.checkbox_1010.isChecked():
-                self.draw_landmarks_with_specs(
-                    image,
-                    points["front_1010"],
-                    (0, 255, 0),
-                    (0, 255, 0),
-                    opthick,
-                    opsize,
-                )
-                if self.checkbox_backhead.isChecked():
-                    self.draw_landmarks_with_specs(
-                        image,
-                        points["back_1010"],
-                        (0, 255, 0),
-                        (0, 255, 0),
-                        opthick,
-                        opsize,
-                    )
-
-            # 10-20 system
-            if self.checkbox_1020.isChecked():
-                self.draw_landmarks_with_specs(
-                    image,
-                    points["front_1020"],
-                    (0, 125, 255),
-                    (0, 255, 0),
-                    opthick,
-                    opsize,
-                )
-                if self.checkbox_backhead.isChecked():
-                    self.draw_landmarks_with_specs(
-                        image,
-                        points["back_1020"],
-                        (0, 125, 255),
-                        (0, 255, 0),
-                        opthick,
-                        opsize,
-                    )
+        draw_brain_landmarks(
+            image, brain10_5p, results, checkbox_states, opsize, opthick, show_back
+        )
 
     def livefacemask(self, image, results, moving_averaged_Brain_LMs_list, iteration):
         if results.face_landmarks is not None:
-            if self.radioButton_3p.isChecked():
-                atlas10_5 = copy.deepcopy(atlas10_5_3points)
-            else:
-                atlas10_5 = copy.deepcopy(atlas10_5_5points)
-
-            # -------------- Predict cranial points by fitted linear transformation ---------------
-            FACE_LANDMARK_INDICES = [
-                33,
-                133,
-                168,
-                362,
-                263,
-                4,
-                61,
-                291,
-                10,
-                332,
-                389,
-                323,
-                397,
-                378,
-                152,
-                149,
-                172,
-                93,
-                162,
-                103,
-            ]
-
-            pts = results.face_landmarks.landmark
-            landmark_face_predictor_for_all = landmark_pb2.NormalizedLandmarkList(
-                landmark=[pts[i] for i in FACE_LANDMARK_INDICES]
-            )
-            predictor_for_all = landmark2numpy(landmark_face_predictor_for_all)
-            predictor_for_all = np.reshape(predictor_for_all, (1, -1))
-
-            nz = landmark_pb2.NormalizedLandmarkList(landmark=[pts[168]])
-            predicted_lpa = np.transpose(my_reg1020(predictor_for_all, x_lpa))
-            predicted_rpa = np.transpose(my_reg1020(predictor_for_all, x_rpa))
-            predicted_iz = np.transpose(my_reg1020(predictor_for_all, x_iz))
-            predicted_cz = np.transpose(my_reg1020(predictor_for_all, x_cz))
-
-            Amat, bvec = affinemap(
-                np.array(
-                    [
-                        atlas10_5_3points["nz"],
-                        atlas10_5_3points["lpa"],
-                        atlas10_5_3points["rpa"],
-                        atlas10_5_3points["iz"],
-                        atlas10_5_3points["cz"],
-                    ]
-                ),
-                np.array(
-                    [
-                        landmark2numpy(nz)[0],
-                        predicted_lpa[0],
-                        predicted_rpa[0],
-                        predicted_iz[0],
-                        predicted_cz[0],
-                    ]
-                ),
+            # Choose atlas based on radio button
+            atlas10_5 = copy.deepcopy(
+                atlas10_5_3points
+                if self.radioButton_3p.isChecked()
+                else atlas10_5_5points
             )
 
-            # -------------- alternative method ---------------
             if self.checkbox_old.isChecked():
-                pts = results.face_landmarks.landmark
-                landmark_face_subset = landmark_pb2.NormalizedLandmarkList(
-                    landmark=[
-                        pts[168],
-                        pts[10],
-                        {
-                            "x": 2 * pts[234].x - pts[227].x,
-                            "y": 2 * pts[234].y - pts[227].y,
-                            "z": 2 * pts[234].z - pts[227].z,
-                        },
-                        {
-                            "x": 2 * pts[454].x - pts[447].x,
-                            "y": 2 * pts[454].y - pts[447].y,
-                            "z": 2 * pts[454].z - pts[447].z,
-                        },
-                    ]
+                # Use alternative method
+                Amat, bvec = apply_alternative_method(results, atlas10_5)
+            else:
+                # Use ML prediction method
+                Amat, bvec = apply_ml_prediction_method(
+                    results, atlas10_5_3points, model_data
                 )
-
-                Amat, bvec = affinemap(
-                    np.array(
-                        [
-                            atlas10_5["nz"],
-                            atlas10_5["sm"][1],
-                            atlas10_5["rpa"],
-                            atlas10_5["lpa"],
-                        ]
-                    ),
-                    landmark2numpy(landmark_face_subset),
-                )
-            # -----------------------------------------------------
-
-            tmp = reg1020(
-                Amat, bvec, [atlas10_5["lpa"], atlas10_5["rpa"], atlas10_5["iz"]]
-            )
-            iz = tmp[2]
 
             brain10_5p = apply_registration_to_atlas_points(Amat, bvec, atlas10_5)
             brain10_5p = self.apply_slider_adjustment(brain10_5p)
 
-            brain10_5p_array = list(brain10_5p.values())
-            brain10_5p_array = np.concatenate(brain10_5p_array, axis=0)
+            # Handle moving average
+            brain10_5p_array = np.concatenate(list(brain10_5p.values()), axis=0)
+            averaged_result, moving_averaged_Brain_LMs_list = update_moving_average(
+                moving_averaged_Brain_LMs_list,
+                brain10_5p_array,
+                window_size=self.horizontalSlider_movavg.value(),
+            )
 
-            moving_averaged_Brain_LMs_list.append(brain10_5p_array)
-            moving_window_size = self.horizontalSlider_movavg.value()
-
-            if len(moving_averaged_Brain_LMs_list) > moving_window_size:
-                # Trim the list to the current window size by removing the oldest entries
-                moving_averaged_Brain_LMs_list = moving_averaged_Brain_LMs_list[
-                    -moving_window_size:
-                ]
-
-            # Check if there's enough data to compute the moving average
-            if len(moving_averaged_Brain_LMs_list) == moving_window_size:
-                moving_averaged_Brain_LMs_arr = np.stack(
-                    moving_averaged_Brain_LMs_list, axis=0
-                )
-                Avged_moving_averaged_Brain_LMs_arr = np.mean(
-                    moving_averaged_Brain_LMs_arr, axis=0
-                )
-
-                Avged_moving_averaged_Brain_LMs_dict = map_arrays_to_dict(
-                    Avged_moving_averaged_Brain_LMs_arr
-                )
-                self.Brain_LMs_plotting(
-                    Avged_moving_averaged_Brain_LMs_dict, results, image
-                )
+            if averaged_result:
+                self.Brain_LMs_plotting(averaged_result, results, image)
 
         return moving_averaged_Brain_LMs_list
 

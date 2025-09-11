@@ -1,7 +1,10 @@
 import numpy as np
 import cv2
+import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
 from PyQt5 import QtCore, QtGui
+
+mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
 
 # =============================================================================
 # Configuration and Constants
@@ -607,3 +610,222 @@ def get_drawing_point_groups(brain10_5p):
         "front_1020": front_1020_points,
         "back_1020": back_1020_points,
     }
+
+
+def update_moving_average(data_list, new_data, window_size):
+    """Update moving average list and return averaged result if ready"""
+    data_list.append(new_data)
+
+    if len(data_list) > window_size:
+        data_list = data_list[-window_size:]
+
+    if len(data_list) == window_size:
+        averaged_data = np.mean(np.stack(data_list, axis=0), axis=0)
+        return map_arrays_to_dict(averaged_data), data_list
+
+    return None, data_list
+
+
+def apply_alternative_method(results, atlas10_5):
+    """Apply alternative transformation method"""
+    pts = results.face_landmarks.landmark
+    landmark_face_subset = landmark_pb2.NormalizedLandmarkList(
+        landmark=[
+            pts[168],
+            pts[10],
+            {
+                "x": 2 * pts[234].x - pts[227].x,
+                "y": 2 * pts[234].y - pts[227].y,
+                "z": 2 * pts[234].z - pts[227].z,
+            },
+            {
+                "x": 2 * pts[454].x - pts[447].x,
+                "y": 2 * pts[454].y - pts[447].y,
+                "z": 2 * pts[454].z - pts[447].z,
+            },
+        ]
+    )
+
+    return affinemap(
+        np.array(
+            [
+                atlas10_5["nz"],
+                atlas10_5["sm"][1],
+                atlas10_5["rpa"],
+                atlas10_5["lpa"],
+            ]
+        ),
+        landmark2numpy(landmark_face_subset),
+    )
+
+
+def extract_face_landmarks(results, landmark_indices):
+    """Extract specific face landmarks"""
+    pts = results.face_landmarks.landmark
+    landmark_face_predictor = landmark_pb2.NormalizedLandmarkList(
+        landmark=[pts[i] for i in landmark_indices]
+    )
+    predictor = landmark2numpy(landmark_face_predictor)
+    return np.reshape(predictor, (1, -1))
+
+
+def predict_cranial_points(predictor, model_data):
+    """Predict cranial points using models"""
+    return {
+        "lpa": np.transpose(my_reg1020(predictor, model_data["x_lpa"])),
+        "rpa": np.transpose(my_reg1020(predictor, model_data["x_rpa"])),
+        "iz": np.transpose(my_reg1020(predictor, model_data["x_iz"])),
+        "cz": np.transpose(my_reg1020(predictor, model_data["x_cz"])),
+    }
+
+
+def apply_ml_prediction_method(results, atlas10_5_3points, model_data):
+    """
+    Apply ML-based prediction method to calculate transformation matrix.
+
+    Args:
+        results: MediaPipe results object
+        atlas10_5_3points: 3-point atlas data
+        model_data: Dictionary containing ML models (x_lpa, x_rpa, x_iz, x_cz)
+
+    Returns:
+        tuple: (Amat, bvec) transformation matrix and translation vector
+    """
+    # Define face landmark indices for prediction
+    FACE_LANDMARK_INDICES = [
+        33,
+        133,
+        168,
+        362,
+        263,
+        4,
+        61,
+        291,
+        10,
+        332,
+        389,
+        323,
+        397,
+        378,
+        152,
+        149,
+        172,
+        93,
+        162,
+        103,
+    ]
+
+    # Extract face landmarks for prediction
+    predictor = extract_face_landmarks(results, FACE_LANDMARK_INDICES)
+
+    # Predict cranial points using ML models
+    predictions = predict_cranial_points(predictor, model_data)
+
+    # Create nasion landmark for transformation
+    nz = landmark_pb2.NormalizedLandmarkList(
+        landmark=[results.face_landmarks.landmark[168]]
+    )
+
+    # Calculate affine transformation
+    source_points = np.array(
+        [
+            atlas10_5_3points["nz"],
+            atlas10_5_3points["lpa"],
+            atlas10_5_3points["rpa"],
+            atlas10_5_3points["iz"],
+            atlas10_5_3points["cz"],
+        ]
+    )
+
+    target_points = np.array(
+        [
+            landmark2numpy(nz)[0],
+            predictions["lpa"][0],
+            predictions["rpa"][0],
+            predictions["iz"][0],
+            predictions["cz"][0],
+        ]
+    )
+
+    return affinemap(source_points, target_points)
+
+
+def draw_landmarks_with_specs(
+    image, points_list, front_color, back_color=None, thickness=None, radius=None
+):
+    """Draw landmarks with specified colors and styles"""
+    back_color = back_color or front_color
+
+    if points_list and len(points_list) > 0:
+        valid_points = [p for p in points_list if p is not None and len(p) > 0]
+        if valid_points:
+            combined_points = np.vstack(valid_points)
+            mp_drawing.draw_landmarks(
+                image,
+                numpy2landmark(combined_points),
+                None,
+                mp_drawing.DrawingSpec(
+                    color=front_color, thickness=thickness, circle_radius=radius
+                ),
+                mp_drawing.DrawingSpec(
+                    color=back_color, thickness=thickness, circle_radius=radius
+                ),
+            )
+
+
+def draw_brain_landmarks(
+    image, brain10_5p, results, checkbox_states, opsize, opthick, show_back
+):
+    """Draw brain landmarks based on checkbox states"""
+    if results.face_landmarks is None:
+        return
+
+    points = get_drawing_point_groups(brain10_5p)
+
+    # Configuration for different systems
+    systems_config = {
+        "105": {
+            "checkbox": checkbox_states.get("105", False),
+            "front_points": points["front_105"],
+            "back_points": points["back_105"],
+            "front_color": (255, 255, 0),
+            "back_color": (0, 255, 0),
+        },
+        "1010": {
+            "checkbox": checkbox_states.get("1010", False),
+            "front_points": points["front_1010"],
+            "back_points": points["back_1010"],
+            "front_color": (0, 255, 0),
+            "back_color": (0, 255, 0),
+        },
+        "1020": {
+            "checkbox": checkbox_states.get("1020", False),
+            "front_points": points["front_1020"],
+            "back_points": points["back_1020"],
+            "front_color": (0, 125, 255),
+            "back_color": (0, 255, 0),
+        },
+    }
+
+    # Draw each system if enabled
+    for system_name, config in systems_config.items():
+        if config["checkbox"]:
+            # Draw front points
+            draw_landmarks_with_specs(
+                image,
+                config["front_points"],
+                config["front_color"],
+                config["back_color"],
+                opthick,
+                opsize,
+            )
+            # Draw back points if enabled
+            if show_back:
+                draw_landmarks_with_specs(
+                    image,
+                    config["back_points"],
+                    config["front_color"],
+                    config["back_color"],
+                    opthick,
+                    opsize,
+                )
