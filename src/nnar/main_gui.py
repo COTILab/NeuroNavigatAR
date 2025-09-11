@@ -5,7 +5,6 @@ from mediapipe.framework.formats import landmark_pb2
 import jdata as jd
 import copy
 from PyQt5 import QtCore, QtGui, QtWidgets
-import scipy.io
 import sys
 
 from .utils import (
@@ -30,17 +29,11 @@ atlas10_5_3points = jd.load("data/atlases/1020atlas_Colin27.json")
 atlas10_5_5points = jd.load("data/atlases/1020atlas_Colin27_5points.json")
 atlas10_5 = copy.deepcopy(atlas10_5_3points)
 
-# TOD: make to JData format
 # Load trained models
-lpa_mat = scipy.io.loadmat("data/models/x_lpa_all.mat")
-rpa_mat = scipy.io.loadmat("data/models/x_rpa_all.mat")
-iz_mat = scipy.io.loadmat("data/models/x_iz_all.mat")
-cz_mat = scipy.io.loadmat("data/models/x_cz_all.mat")
-
-x_lpa = lpa_mat["x_lpa"]
-x_rpa = rpa_mat["x_rpa"]
-x_iz = iz_mat["x_iz"]
-x_cz = cz_mat["x_cz"]
+x_lpa = np.array(jd.load("data/models/x_lpa_all.json"))
+x_rpa = np.array(jd.load("data/models/x_rpa_all.json"))
+x_iz = np.array(jd.load("data/models/x_iz_all.json"))
+x_cz = np.array(jd.load("data/models/x_cz_all.json"))
 
 
 class MainWindow(QtWidgets.QMainWindow):

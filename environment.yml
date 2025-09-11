@@ -13,4 +13,3 @@ dependencies:
       - matplotlib==3.7.4
       - pyqt5==5.15.10
       - jdata==0.5.3
-      - scipy==1.10.1
