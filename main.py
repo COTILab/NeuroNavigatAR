@@ -3,7 +3,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from neuronavigatar.main_gui import MainWindow
+from nnar.main_gui import MainWindow
 from PyQt5 import QtWidgets
 
 if __name__ == "__main__":
