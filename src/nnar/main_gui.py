@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import mediapipe as mp
-from mediapipe.framework.formats import landmark_pb2
 import jdata as jd
 import copy
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -45,11 +44,11 @@ class nnar(QtWidgets.QMainWindow):
         self.statusbar = QtWidgets.QStatusBar(self)
         self.setStatusBar(self.statusbar)
 
-        self.horizontalSlider_smcm.valueChanged.connect(self.scaletext_smcm)
-        self.horizontalSlider_movavg.valueChanged.connect(self.scaletext_movavg)
-        self.horizontalSlider_opsize.valueChanged.connect(self.scaletext_opsize)
-        self.button.clicked.connect(self.loadImage)
-        self.button_close.clicked.connect(self.closeVideo)
+        self.horizontalSlider_smcm.valueChanged.connect(self.update_smcm_display)
+        self.horizontalSlider_movavg.valueChanged.connect(self.update_movavg_display)
+        self.horizontalSlider_opsize.valueChanged.connect(self.update_opsize_display)
+        self.button_start.clicked.connect(self.start_video)
+        self.button_stop.clicked.connect(self.stop_video)
 
         self.current_size = (self.label1.width(), self.label1.height())
 
@@ -77,18 +76,18 @@ class nnar(QtWidgets.QMainWindow):
 
         button_configs = [
             (
-                "button",
+                "button_start",
                 "Video On",
                 "assets/icons/on_button.png",
                 "Click this button to start the video.",
-                self.loadImage,
+                self.start_video,
             ),
             (
-                "button_close",
+                "button_stop",
                 "Video Stop",
                 "assets/icons/off_button.png",
                 "Click this button to stop the video.",
-                self.closeVideo,
+                self.stop_video,
             ),
         ]
 
@@ -115,7 +114,7 @@ class nnar(QtWidgets.QMainWindow):
                 "default": 50,
                 "display_val": "0.5",
                 "tooltip": "Adjust head model position vertically.",
-                "callback": self.scaletext_smcm,
+                "callback": self.update_smcm_display,
             },
             {
                 "name": "movavg",
@@ -125,7 +124,7 @@ class nnar(QtWidgets.QMainWindow):
                 "default": 1,
                 "display_val": "1",
                 "tooltip": "Window numbers used to average to increase stability.",
-                "callback": self.scaletext_movavg,
+                "callback": self.update_movavg_display,
             },
             {
                 "name": "opsize",
@@ -135,7 +134,7 @@ class nnar(QtWidgets.QMainWindow):
                 "default": 3,
                 "display_val": "3",
                 "tooltip": "Size of displayed optodes.",
-                "callback": self.scaletext_opsize,
+                "callback": self.update_opsize_display,
             },
         ]
 
@@ -229,7 +228,7 @@ class nnar(QtWidgets.QMainWindow):
 
         # Alternative method checkbox
         self._create_centered_checkbox(
-            parent_layout, "checkbox_old", "Use alternative method"
+            parent_layout, "checkbox_use_alt_method", "Use alternative method"
         )
 
     def _create_centered_checkbox(self, parent_layout, attr_name, text, checked=False):
@@ -262,14 +261,11 @@ class nnar(QtWidgets.QMainWindow):
 
     def selectionchange(self, i):
         """Select atlas based on dropdown menu"""
-        global atlas10_5, atlas10_5_3points, atlas10_5_5points  # Keep these for now
+        global atlas10_5, atlas10_5_3points, atlas10_5_5points
 
         selected_text = self.dropdown.itemText(i)
         if selected_text in ATLAS_MAPPING:
             atlas_file, atlas_file_5points = ATLAS_MAPPING[selected_text]
-
-            # Update global variables (not ideal, but maintaining current structure)
-            import jdata as jd
 
             atlas10_5 = jd.load(atlas_file)
             atlas10_5_3points = jd.load(atlas_file)
@@ -296,19 +292,19 @@ class nnar(QtWidgets.QMainWindow):
         self.update_pixmap(new_width, new_height)
         super(nnar, self).resizeEvent(event)
 
-    def scaletext_smcm(self, value):
+    def update_smcm_display(self, value):
         self.label_smcm.setText(str(value / 100))
 
-    def scaletext_movavg(self, value):
+    def update_movavg_display(self, value):
         self.label_movavg.setText(str(value))
 
-    def scaletext_opsize(self, value):
+    def update_opsize_display(self, value):
         self.label_opsize.setText(str(value))
 
-    def closeVideo(self):
+    def stop_video(self):
         self.videoStatus = False
 
-    def Brain_LMs_plotting(self, brain10_5p, results, image):
+    def plot_brain_landmarks(self, brain10_5p, results, image):
         """Plot brain landmarks on image"""
         checkbox_states = {
             "105": self.checkbox_105.isChecked(),
@@ -320,11 +316,11 @@ class nnar(QtWidgets.QMainWindow):
         opthick = opsize - 1
         show_back = self.checkbox_backhead.isChecked()
 
-        draw_brain_landmarks(
+        render_electrode_overlay(
             image, brain10_5p, results, checkbox_states, opsize, opthick, show_back
         )
 
-    def livefacemask(self, image, results, moving_averaged_Brain_LMs_list, iteration):
+    def livefacemask(self, image, results, mov_avg_buffer, iteration):
         if results.face_landmarks is not None:
             # Choose atlas based on radio button
             atlas10_5 = copy.deepcopy(
@@ -333,7 +329,7 @@ class nnar(QtWidgets.QMainWindow):
                 else atlas10_5_5points
             )
 
-            if self.checkbox_old.isChecked():
+            if self.checkbox_use_alt_method.isChecked():
                 # Use alternative method
                 Amat, bvec = apply_alternative_method(results, atlas10_5)
             else:
@@ -349,18 +345,18 @@ class nnar(QtWidgets.QMainWindow):
 
             # Handle moving average
             brain10_5p_array = np.concatenate(list(brain10_5p.values()), axis=0)
-            averaged_result, moving_averaged_Brain_LMs_list = update_moving_average(
-                moving_averaged_Brain_LMs_list,
+            averaged_result, mov_avg_buffer = update_mov_avg_buffer(
+                mov_avg_buffer,
                 brain10_5p_array,
                 window_size=self.horizontalSlider_movavg.value(),
             )
 
             if averaged_result:
-                self.Brain_LMs_plotting(averaged_result, results, image)
+                self.plot_brain_landmarks(averaged_result, results, image)
 
-        return moving_averaged_Brain_LMs_list
+        return mov_avg_buffer
 
-    def loadImage(self):
+    def start_video(self):
         if self.playing:
             return
         self.playing = True
@@ -372,17 +368,19 @@ class nnar(QtWidgets.QMainWindow):
             # Define frame processor
             def process_frame(image, results, iteration, state):
                 # Get or initialize moving average list
-                moving_list = state.get("moving_averaged_Brain_LMs_list", [])
+                moving_list = state.get("mov_avg_buffer", [])
 
                 # Process landmarks
                 moving_list = self.livefacemask(image, results, moving_list, iteration)
 
                 # Display the result
                 flipped_image = cv2.flip(image, 1)
-                self.label1.setPixmap(convert_cv_qt(flipped_image, self.label1.size()))
+                self.label1.setPixmap(
+                    convert_opencv_to_pixmap(flipped_image, self.label1.size())
+                )
 
                 # Return updated state
-                return {"moving_averaged_Brain_LMs_list": moving_list}
+                return {"mov_avg_buffer": moving_list}
 
             # Define continue condition
             def should_continue():

@@ -19,18 +19,14 @@ __all__ = [
     # Constants
     "ATLAS_MAPPING",
     # Mathematical Functions
-    "affinemap",
-    "reg1020",
-    "my_reg1020",
+    "calculate_affine_transform",
+    "calculate_transformed_points",
+    "calculate_predicted_position",
     # Data Conversion
     "landmark2numpy",
     "numpy2landmark",
-    "convert_cv_qt",
-    "map_arrays_to_dict",
-    # Image Processing
-    "resize_frame_keep_aspect",
-    # Data Processing
-    "interpolate_datasets_dict",
+    "convert_opencv_to_pixmap",
+    "convert_arrays_to_electrode_dict",
     # Atlas Processing
     "apply_registration_to_atlas_points",
     "get_drawing_point_groups",
@@ -41,11 +37,11 @@ __all__ = [
     "apply_alternative_method",
     "apply_ml_prediction_method",
     # Moving Average & Adjustments
-    "update_moving_average",
+    "update_mov_avg_buffer",
     "apply_slider_adjustment",
     # Visualization
-    "draw_landmarks_with_specs",
-    "draw_brain_landmarks",
+    "render_electrode_markers",
+    "render_electrode_overlay",
     # Video Processing
     "process_video_stream",
 ]
@@ -58,7 +54,7 @@ import numpy as np
 import cv2
 import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
-from PyQt5 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 import copy
 
 mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
@@ -242,7 +238,7 @@ ELECTRODE_LENGTHS = [
 # =============================================================================
 
 
-def affinemap(pfrom, pto):
+def calculate_affine_transform(pfrom, pto):
     """
     Calculate affine transformation mapping from source to target points.
 
@@ -267,7 +263,7 @@ def affinemap(pfrom, pto):
     return [A, b]
 
 
-def reg1020(Amat, bvec, pts):
+def calculate_transformed_points(Amat, bvec, pts):
     """
     Apply 10-20 registration transformation to points.
 
@@ -285,7 +281,7 @@ def reg1020(Amat, bvec, pts):
     return newpt
 
 
-def my_reg1020(predictor, x_pa):
+def calculate_predicted_position(predictor, x_pa):
     """
     Custom 10-20 registration using predictor and parameter array.
 
@@ -344,7 +340,7 @@ def numpy2landmark(pts):
     return landmarks
 
 
-def convert_cv_qt(cv_img, target_size=None):
+def convert_opencv_to_pixmap(cv_img, target_size=None):
     """
     Convert OpenCV BGR image to QPixmap. If target_size is provided,
     scale to that size with aspect ratio kept; otherwise keep native size.
@@ -372,7 +368,7 @@ def convert_cv_qt(cv_img, target_size=None):
     return QtGui.QPixmap.fromImage(qimg)
 
 
-def map_arrays_to_dict(array_list):
+def convert_arrays_to_electrode_dict(array_list):
     """
     Maps a list of arrays back into a dictionary with predefined keys and lengths.
 
@@ -391,94 +387,6 @@ def map_arrays_to_dict(array_list):
         start_index += length
 
     return reversed_dict
-
-
-# =============================================================================
-# Image Processing Utilities
-# =============================================================================
-
-
-def resize_frame_keep_aspect(frame, label_width, label_height):
-    """
-    Resize frame while maintaining aspect ratio to fit within label dimensions.
-
-    Args:
-        frame: Input image frame
-        label_width (int): Target label width
-        label_height (int): Target label height
-
-    Returns:
-        np.array: Resized frame maintaining aspect ratio
-    """
-    height, width = frame.shape[:2]
-    aspect_ratio = width / height
-
-    # Calculate new dimensions maintaining aspect ratio
-    if label_width / label_height > aspect_ratio:
-        new_height = label_height
-        new_width = int(new_height * aspect_ratio)
-    else:
-        new_width = label_width
-        new_height = int(new_width / aspect_ratio)
-
-    # Ensure even dimensions for video compatibility
-    new_width += new_width % 2
-    new_height += new_height % 2
-
-    # Resize the frame
-    resized_frame = cv2.resize(frame, (new_width, new_height))
-    return resized_frame
-
-
-# =============================================================================
-# Data Processing and Interpolation
-# =============================================================================
-
-
-def interpolate_datasets_dict(data1, data2, scale):
-    """
-    Interpolate between two datasets with matching keys.
-
-    Args:
-        data1 (dict): First dataset
-        data2 (dict): Second dataset
-        scale (float): Interpolation factor (0.0 = data1, 1.0 = data2)
-
-    Returns:
-        dict: Interpolated dataset
-
-    Raises:
-        ValueError: If datasets don't have matching keys or point counts
-    """
-    if set(data1.keys()) != set(data2.keys()):
-        raise ValueError("Both datasets must have the same keys")
-
-    interpolated_data = {}
-    for key in data1:
-        points1 = data1[key]
-        points2 = data2[key]
-
-        if isinstance(points1[0], list):  # Handle nested lists
-            if len(points1) != len(points2):
-                raise ValueError(
-                    f"Key '{key}' must have the same number of points in both datasets"
-                )
-            interpolated_points = [
-                [(1 - scale) * p1 + scale * p2 for p1, p2 in zip(point1, point2)]
-                for point1, point2 in zip(points1, points2)
-            ]
-        else:  # Handle flat lists
-            if len(points1) != len(points2):
-                raise ValueError(
-                    f"Key '{key}' must have the same number of points in both datasets"
-                )
-            interpolated_points = [
-                (1 - scale) * p1 + scale * p2 for p1, p2 in zip(points1, points2)
-            ]
-
-        interpolated_data[key] = interpolated_points
-
-    return interpolated_data
 
 
 # =============================================================================
@@ -501,7 +409,9 @@ def apply_registration_to_atlas_points(Amat, bvec, atlas10_5):
     brain10_5p = {}
     for group in ELECTRODE_KEYS:
         if group in atlas10_5:
-            brain10_5p[group] = reg1020(Amat, bvec, atlas10_5[group])
+            brain10_5p[group] = calculate_transformed_points(
+                Amat, bvec, atlas10_5[group]
+            )
 
     return brain10_5p
 
@@ -703,10 +613,14 @@ def predict_cranial_points(predictor, model_data):
         dict: Dictionary with predicted cranial points (lpa, rpa, iz, cz)
     """
     return {
-        "lpa": np.transpose(my_reg1020(predictor, model_data["x_lpa"])),
-        "rpa": np.transpose(my_reg1020(predictor, model_data["x_rpa"])),
-        "iz": np.transpose(my_reg1020(predictor, model_data["x_iz"])),
-        "cz": np.transpose(my_reg1020(predictor, model_data["x_cz"])),
+        "lpa": np.transpose(
+            calculate_predicted_position(predictor, model_data["x_lpa"])
+        ),
+        "rpa": np.transpose(
+            calculate_predicted_position(predictor, model_data["x_rpa"])
+        ),
+        "iz": np.transpose(calculate_predicted_position(predictor, model_data["x_iz"])),
+        "cz": np.transpose(calculate_predicted_position(predictor, model_data["x_cz"])),
     }
 
 
@@ -744,7 +658,7 @@ def apply_alternative_method(results, atlas10_5):
         ]
     )
 
-    return affinemap(
+    return calculate_affine_transform(
         np.array(
             [
                 atlas10_5["nz"],
@@ -802,7 +716,7 @@ def apply_ml_prediction_method(results, atlas10_5_3points, model_data):
         ]
     )
 
-    return affinemap(source_points, target_points)
+    return calculate_affine_transform(source_points, target_points)
 
 
 # =============================================================================
@@ -810,7 +724,7 @@ def apply_ml_prediction_method(results, atlas10_5_3points, model_data):
 # =============================================================================
 
 
-def update_moving_average(data_list, new_data, window_size):
+def update_mov_avg_buffer(data_list, new_data, window_size):
     """
     Update moving average list and return averaged result when window is full.
 
@@ -832,7 +746,7 @@ def update_moving_average(data_list, new_data, window_size):
     # Return averaged result when window is full
     if len(data_list) == window_size:
         averaged_data = np.mean(np.stack(data_list, axis=0), axis=0)
-        return map_arrays_to_dict(averaged_data), data_list
+        return convert_arrays_to_electrode_dict(averaged_data), data_list
 
     return None, data_list
 
@@ -867,7 +781,7 @@ def apply_slider_adjustment(brain10_5p, adjustment):
 # =============================================================================
 
 
-def draw_landmarks_with_specs(
+def render_electrode_markers(
     image, points_list, front_color, back_color=None, thickness=None, radius=None
 ):
     """
@@ -901,7 +815,7 @@ def draw_landmarks_with_specs(
             )
 
 
-def draw_brain_landmarks(
+def render_electrode_overlay(
     image, brain10_5p, results, checkbox_states, opsize, opthick, show_back
 ):
     """
@@ -950,7 +864,7 @@ def draw_brain_landmarks(
     for system_name, config in systems_config.items():
         if config["checkbox"]:
             # Draw front electrode positions
-            draw_landmarks_with_specs(
+            render_electrode_markers(
                 image,
                 config["front_points"],
                 config["front_color"],
@@ -960,7 +874,7 @@ def draw_brain_landmarks(
             )
             # Draw back electrode positions if enabled
             if show_back:
-                draw_landmarks_with_specs(
+                render_electrode_markers(
                     image,
                     config["back_points"],
                     config["front_color"],
@@ -1002,8 +916,6 @@ def process_video_stream(
         while video_capture.isOpened():
             # Allow GUI to process events (Qt framework compatibility)
             try:
-                from PyQt5 import QtWidgets
-
                 QtWidgets.QApplication.processEvents()
             except ImportError:
                 pass
@@ -1011,10 +923,6 @@ def process_video_stream(
             ret, frame = video_capture.read()
             if not ret:
                 break
-
-            # Resize frame if dimensions specified
-            # if frame_size[0] is not None and frame_size[1] is not None:
-            #     frame = resize_frame_keep_aspect(frame, frame_size[0], frame_size[1])
 
             # Process frame with MediaPipe
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
