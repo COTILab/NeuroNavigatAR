@@ -344,25 +344,32 @@ def numpy2landmark(pts):
     return landmarks
 
 
-def convert_cv_qt(cv_img):
+def convert_cv_qt(cv_img, target_size=None):
     """
-    Convert OpenCV image to QPixmap for PyQt display.
+    Convert OpenCV BGR image to QPixmap. If target_size is provided,
+    scale to that size with aspect ratio kept; otherwise keep native size.
 
     Args:
         cv_img: OpenCV image (BGR format)
 
     Returns:
-        QtGui.QPixmap: Qt-compatible pixmap scaled to 800x500
+        QtGui.QPixmap: Qt-compatible pixmap
     """
     # Convert BGR to RGB
     rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
     h, w, ch = rgb_image.shape
     bytes_per_line = ch * w
-    convert_to_Qt_format = QtGui.QImage(
+    qimg = QtGui.QImage(
         rgb_image.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888
     )
-    p = convert_to_Qt_format.scaled(800, 500, QtCore.Qt.KeepAspectRatio)
-    return QtGui.QPixmap.fromImage(p)
+    if target_size is not None:
+        qimg = qimg.scaled(
+            target_size.width(),
+            target_size.height(),
+            QtCore.Qt.KeepAspectRatio,
+            QtCore.Qt.SmoothTransformation,
+        )
+    return QtGui.QPixmap.fromImage(qimg)
 
 
 def map_arrays_to_dict(array_list):
@@ -518,8 +525,8 @@ def extract_eeg_system_points(brain10_5p):
     systems["1010"] = {
         "cm": cm_1010,
         "sm": sm_1010,
-        "front_cm": cm_1010[: len(cm_1010) // 2 + 1],
-        "back_cm": cm_1010[len(cm_1010) // 2 + 1 :],
+        "front_sm": sm_1010[: len(sm_1010) // 2 + 1],
+        "back_sm": sm_1010[len(sm_1010) // 2 + 1 :],
         "aal": brain10_5p["aal"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
         "aar": brain10_5p["aar"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
         "apl": brain10_5p["apl"][EEG_SYSTEM_INDICES["aal_aar_1010"]],
@@ -545,8 +552,8 @@ def extract_eeg_system_points(brain10_5p):
     systems["1020"] = {
         "cm": cm_1020,
         "sm": sm_1020,
-        "front_cm": cm_1020[: len(cm_1020) // 2 + 1],
-        "back_cm": cm_1020[len(cm_1020) // 2 + 1 :],
+        "front_sm": sm_1020[: len(sm_1020) // 2 + 1],
+        "back_sm": sm_1020[len(sm_1020) // 2 + 1 :],
         "aal": brain10_5p["aal"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
         "aar": brain10_5p["aar"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
         "apl": brain10_5p["apl"][EEG_SYSTEM_INDICES["aal_aar_1020"]],
@@ -572,8 +579,8 @@ def get_drawing_point_groups(brain10_5p):
     front_105_points = [
         brain10_5p["aal"],
         brain10_5p["aar"],
-        brain10_5p["sm"],
-        brain10_5p["cm"][0:9],
+        brain10_5p["sm"][0:9],
+        brain10_5p["cm"],
         brain10_5p["cal_1"],
         brain10_5p["car_1"],
         brain10_5p["cal_2"],
@@ -593,7 +600,7 @@ def get_drawing_point_groups(brain10_5p):
     back_105_points = [
         brain10_5p["apl"],
         brain10_5p["apr"],
-        brain10_5p["cm"][9:],
+        brain10_5p["sm"][9:],
         brain10_5p["cpl_1"],
         brain10_5p["cpr_1"],
         brain10_5p["cpl_2"],
@@ -610,10 +617,10 @@ def get_drawing_point_groups(brain10_5p):
         brain10_5p["cpr_7"],
     ]
 
-    # 10-10 system points (intermediate resolution)
+    # 10-10 system points
     front_1010_points = [
-        systems["1010"]["sm"],
-        systems["1010"]["front_cm"],
+        systems["1010"]["front_sm"],
+        systems["1010"]["cm"],
         systems["1010"]["aal"],
         systems["1010"]["aar"],
         systems["1010"]["cal_2"],
@@ -626,7 +633,7 @@ def get_drawing_point_groups(brain10_5p):
 
     back_1010_points = [
         systems["1010"]["apl"],
-        systems["1010"]["back_cm"],
+        systems["1010"]["back_sm"],
         systems["1010"]["apr"],
         systems["1010"]["cpl_2"],
         systems["1010"]["cpr_2"],
@@ -636,18 +643,18 @@ def get_drawing_point_groups(brain10_5p):
         systems["1010"]["cpr_6"],
     ]
 
-    # 10-20 system points (standard clinical resolution)
+    # 10-20 system points
     front_1020_points = [
-        systems["1020"]["sm"],
+        systems["1020"]["cm"],
         systems["1020"]["aal"],
         systems["1020"]["aar"],
-        systems["1020"]["front_cm"],
+        systems["1020"]["front_sm"],
     ]
 
     back_1020_points = [
         systems["1020"]["apl"],
         systems["1020"]["apr"],
-        systems["1020"]["back_cm"],
+        systems["1020"]["back_sm"],
     ]
 
     return {
@@ -920,22 +927,22 @@ def draw_brain_landmarks(
             "checkbox": checkbox_states.get("105", False),
             "front_points": points["front_105"],
             "back_points": points["back_105"],
-            "front_color": (255, 255, 0),  # Yellow
-            "back_color": (0, 255, 0),  # Green
+            "front_color": (255, 255, 0),  # Light Blue
+            "back_color": (0, 255, 0),
         },
         "1010": {
             "checkbox": checkbox_states.get("1010", False),
             "front_points": points["front_1010"],
             "back_points": points["back_1010"],
             "front_color": (0, 255, 0),  # Green
-            "back_color": (0, 255, 0),  # Green
+            "back_color": (0, 255, 0),
         },
         "1020": {
             "checkbox": checkbox_states.get("1020", False),
             "front_points": points["front_1020"],
             "back_points": points["back_1020"],
             "front_color": (0, 125, 255),  # Orange-red
-            "back_color": (0, 255, 0),  # Green
+            "back_color": (0, 255, 0),
         },
     }
 
@@ -991,41 +998,45 @@ def process_video_stream(
     iteration = 0
     processing_state = {}
 
-    while video_capture.isOpened():
-        # Allow GUI to process events (Qt framework compatibility)
-        try:
-            from PyQt5 import QtWidgets
+    try:
+        while video_capture.isOpened():
+            # Allow GUI to process events (Qt framework compatibility)
+            try:
+                from PyQt5 import QtWidgets
 
-            QtWidgets.QApplication.processEvents()
-        except ImportError:
-            pass
+                QtWidgets.QApplication.processEvents()
+            except ImportError:
+                pass
 
-        ret, frame = video_capture.read()
-        if not ret:
-            break
+            ret, frame = video_capture.read()
+            if not ret:
+                break
 
-        # Resize frame if dimensions specified
-        if frame_size[0] is not None and frame_size[1] is not None:
-            frame = resize_frame_keep_aspect(frame, frame_size[0], frame_size[1])
+            # Resize frame if dimensions specified
+            # if frame_size[0] is not None and frame_size[1] is not None:
+            #     frame = resize_frame_keep_aspect(frame, frame_size[0], frame_size[1])
 
-        # Process frame with MediaPipe
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image.flags.writeable = False
-        results = holistic_processor.process(image)
+            # Process frame with MediaPipe
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image.flags.writeable = False
+            results = holistic_processor.process(image)
 
-        # Prepare image for rendering
-        image.flags.writeable = True
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            # Prepare image for rendering
+            image.flags.writeable = True
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-        # Execute custom frame processing
-        processing_state = frame_processor_callback(
-            image, results, iteration, processing_state
-        )
+            # Execute custom frame processing
+            processing_state = frame_processor_callback(
+                image, results, iteration, processing_state
+            )
 
-        iteration += 1
+            iteration += 1
 
-        # Check continuation condition
-        if not should_continue_callback():
-            break
+            # Check continuation condition
+            if not should_continue_callback():
+                break
+    finally:
+        video_capture.release()
+        cv2.destroyAllWindows()
 
     return processing_state

@@ -7,17 +7,7 @@ import copy
 from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
 
-from .utils import (
-    convert_cv_qt,
-    apply_registration_to_atlas_points,
-    update_moving_average,
-    apply_alternative_method,
-    apply_ml_prediction_method,
-    draw_brain_landmarks,
-    apply_slider_adjustment,
-    process_video_stream,
-    ATLAS_MAPPING,
-)
+from .utils import *
 
 mp_holistic = mp.solutions.holistic  # Mediapipe Solutions
 
@@ -62,6 +52,8 @@ class nnar(QtWidgets.QMainWindow):
         self.button_close.clicked.connect(self.closeVideo)
 
         self.current_size = (self.label1.width(), self.label1.height())
+
+        self.playing = False
 
     def setup_left_layout(self):
         # Left control panel layout
@@ -271,13 +263,14 @@ class nnar(QtWidgets.QMainWindow):
     def selectionchange(self, i):
         """Select atlas based on dropdown menu"""
         global atlas10_5, atlas10_5_3points, atlas10_5_5points  # Keep these for now
-        
+
         selected_text = self.dropdown.itemText(i)
         if selected_text in ATLAS_MAPPING:
             atlas_file, atlas_file_5points = ATLAS_MAPPING[selected_text]
-            
+
             # Update global variables (not ideal, but maintaining current structure)
             import jdata as jd
+
             atlas10_5 = jd.load(atlas_file)
             atlas10_5_3points = jd.load(atlas_file)
             if atlas_file_5points:  # Check if 5-point file exists
@@ -286,6 +279,8 @@ class nnar(QtWidgets.QMainWindow):
                 atlas10_5_5points = None
 
     def update_pixmap(self, width, height):
+        if self.playing:
+            return
         pixmap = QtGui.QPixmap("assets/icons/NeuroNavigatAR_logo.png")
         scaled_pixmap = pixmap.scaled(
             int(width),
@@ -366,38 +361,47 @@ class nnar(QtWidgets.QMainWindow):
         return moving_averaged_Brain_LMs_list
 
     def loadImage(self):
+        if self.playing:
+            return
+        self.playing = True
+
         self.videoStatus = True
         vid = cv2.VideoCapture(0)
 
-        # Define frame processor
-        def process_frame(image, results, iteration, state):
-            # Get or initialize moving average list
-            moving_list = state.get('moving_averaged_Brain_LMs_list', [])
-            
-            # Process landmarks
-            moving_list = self.livefacemask(image, results, moving_list, iteration)
-            
-            # Display the result
-            flipped_image = cv2.flip(image, 1)
-            self.label1.setPixmap(convert_cv_qt(flipped_image))
-            
-            # Return updated state
-            return {'moving_averaged_Brain_LMs_list': moving_list}
-            
-        # Define continue condition
-        def should_continue():
-            return self.videoStatus
-        
-        # Process video stream
-        with mp_holistic.Holistic(
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-            smooth_landmarks=True,
-        ) as holistic:
-            process_video_stream(
-                vid, 
-                holistic,
-                process_frame,
-                should_continue,
-                (self.label1.width(), self.label1.height())
-            )
+        try:
+            # Define frame processor
+            def process_frame(image, results, iteration, state):
+                # Get or initialize moving average list
+                moving_list = state.get("moving_averaged_Brain_LMs_list", [])
+
+                # Process landmarks
+                moving_list = self.livefacemask(image, results, moving_list, iteration)
+
+                # Display the result
+                flipped_image = cv2.flip(image, 1)
+                self.label1.setPixmap(convert_cv_qt(flipped_image, self.label1.size()))
+
+                # Return updated state
+                return {"moving_averaged_Brain_LMs_list": moving_list}
+
+            # Define continue condition
+            def should_continue():
+                return self.videoStatus
+
+            # Process video stream
+            with mp_holistic.Holistic(
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5,
+                smooth_landmarks=True,
+            ) as holistic:
+                process_video_stream(
+                    vid,
+                    holistic,
+                    process_frame,
+                    should_continue,
+                    (self.label1.width(), self.label1.height()),
+                )
+
+        finally:
+            vid.release()
+            cv2.destroyAllWindows()  # Clean up any OpenCV windows
