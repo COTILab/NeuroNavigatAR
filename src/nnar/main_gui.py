@@ -10,16 +10,30 @@ from .utils import *
 
 mp_holistic = mp.solutions.holistic  # Mediapipe Solutions
 
+import os
+from pathlib import Path
+
+# Find project root directory
+def get_project_root():
+    return Path(__file__).parent.parent.parent
+
+def get_data_path(filename):
+    root = get_project_root()
+    return str(root / "data" / "atlases" / filename)
+
+def get_model_path(filename):
+    return str(get_project_root() / "data" / "models" / filename)
+
 # Load atlas files
-atlas10_5_3points = jd.load("data/atlases/1020atlas_Colin27.json")
-atlas10_5_5points = jd.load("data/atlases/1020atlas_Colin27_5points.json")
+atlas10_5_3points = jd.load(get_data_path("1020atlas_Colin27.json"))
+atlas10_5_5points = jd.load(get_data_path("1020atlas_Colin27_5points.json"))
 atlas10_5 = copy.deepcopy(atlas10_5_3points)
 
 # Load trained models
-x_lpa = np.array(jd.load("data/models/x_lpa_all.json"))
-x_rpa = np.array(jd.load("data/models/x_rpa_all.json"))
-x_iz = np.array(jd.load("data/models/x_iz_all.json"))
-x_cz = np.array(jd.load("data/models/x_cz_all.json"))
+x_lpa = np.array(jd.load(get_model_path("x_lpa_all.json")))
+x_rpa = np.array(jd.load(get_model_path("x_rpa_all.json")))
+x_iz = np.array(jd.load(get_model_path("x_iz_all.json")))
+x_cz = np.array(jd.load(get_model_path("x_cz_all.json")))
 
 # Create model_data dictionary
 model_data = {"x_lpa": x_lpa, "x_rpa": x_rpa, "x_iz": x_iz, "x_cz": x_cz}

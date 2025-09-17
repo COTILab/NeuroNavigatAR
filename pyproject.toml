@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuronavigatar"
+version = "0.1.0"
+dependencies = [
+    "numpy",
+    "opencv-python", 
+    "mediapipe",
+    "PyQt5",
+    "jdata",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+include-package-data = true

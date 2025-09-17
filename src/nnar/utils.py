@@ -63,63 +63,68 @@ mp_drawing = mp.solutions.drawing_utils  # Drawing helpers
 # Configuration and Constants
 # =============================================================================
 
+def get_atlas_path(filename):
+    from pathlib import Path
+    return str(Path(__file__).parent.parent.parent / "data" / "atlases" / filename)
+
+
 # Atlas file paths
 ATLAS_MAPPING = {
     "Atlas (Colin27)": (
-        "data/atlases/1020atlas_Colin27.json",
-        "data/atlases/1020atlas_Colin27_5points.json",
+        get_atlas_path("1020atlas_Colin27.json"),
+        get_atlas_path("1020atlas_Colin27_5points.json"),
     ),
     "Atlas (Age 20-24)": (
-        "data/atlases/1020atlas_20-24Years.json",
-        "data/atlases/1020atlas_20-24Years_5points.json",
+        get_atlas_path("1020atlas_20-24Years.json"),
+        get_atlas_path("1020atlas_20-24Years_5points.json"),
     ),
     "Atlas (Age 25-29)": (
-        "data/atlases/1020atlas_25-29Years.json",
-        "data/atlases/1020atlas_25-29Years_5points.json",
+        get_atlas_path("1020atlas_25-29Years.json"),
+        get_atlas_path("1020atlas_25-29Years_5points.json"),
     ),
     "Atlas (Age 30-34)": (
-        "data/atlases/1020atlas_30-34Years.json",
-        "data/atlases/1020atlas_30-34Years_5points.json",
+        get_atlas_path("1020atlas_30-34Years.json"),
+        get_atlas_path("1020atlas_30-34Years_5points.json"),
     ),
     "Atlas (Age 35-39)": (
-        "data/atlases/1020atlas_35-39Years.json",
-        "data/atlases/1020atlas_35-39Years_5points.json",
+        get_atlas_path("1020atlas_35-39Years.json"),
+        get_atlas_path("1020atlas_35-39Years_5points.json"),
     ),
     "Atlas (Age 40-44)": (
-        "data/atlases/1020atlas_40-44Years.json",
-        "data/atlases/1020atlas_40-44Years_5points.json",
+        get_atlas_path("1020atlas_40-44Years.json"),
+        get_atlas_path("1020atlas_40-44Years_5points.json"),
     ),
     "Atlas (Age 45-49)": (
-        "data/atlases/1020atlas_45-49Years.json",
-        "data/atlases/1020atlas_45-49Years_5points.json",
+        get_atlas_path("1020atlas_45-49Years.json"),
+        get_atlas_path("1020atlas_45-49Years_5points.json"),
     ),
     "Atlas (Age 50-54)": (
-        "data/atlases/1020atlas_50-54Years.json",
-        "data/atlases/1020atlas_50-54Years_5points.json",
+        get_atlas_path("1020atlas_50-54Years.json"),
+        get_atlas_path("1020atlas_50-54Years_5points.json"),
     ),
     "Atlas (Age 55-59)": (
-        "data/atlases/1020atlas_55-59Years.json",
-        "data/atlases/1020atlas_55-59Years_5points.json",
+        get_atlas_path("1020atlas_55-59Years.json"),
+        get_atlas_path("1020atlas_55-59Years_5points.json"),
     ),
     "Atlas (Age 60-64)": (
-        "data/atlases/1020atlas_60-64Years.json",
-        "data/atlases/1020atlas_60-64Years_5points.json",
+        get_atlas_path("1020atlas_60-64Years.json"),
+        get_atlas_path("1020atlas_60-64Years_5points.json"),
     ),
     "Atlas (Age 65-69)": (
-        "data/atlases/1020atlas_65-69Years.json",
-        "data/atlases/1020atlas_65-69Years_5points.json",
+        get_atlas_path("1020atlas_65-69Years.json"),
+        get_atlas_path("1020atlas_65-69Years_5points.json"),
     ),
     "Atlas (Age 70-74)": (
-        "data/atlases/1020atlas_70-74Years.json",
-        "data/atlases/1020atlas_70-74Years_5points.json",
+        get_atlas_path("1020atlas_70-74Years.json"),
+        get_atlas_path("1020atlas_70-74Years_5points.json"),
     ),
     "Atlas (Age 75-79)": (
-        "data/atlases/1020atlas_75-79Years.json",
-        "data/atlases/1020atlas_75-79Years_5points.json",
+        get_atlas_path("1020atlas_75-79Years.json"),
+        get_atlas_path("1020atlas_75-79Years_5points.json"),
     ),
     "Atlas (Age 80-84)": (
-        "data/atlases/1020atlas_80-84Years.json",
-        "data/atlases/1020atlas_80-84Years_5points.json",
+        get_atlas_path("1020atlas_80-84Years.json"),
+        get_atlas_path("1020atlas_80-84Years_5points.json"),
     ),
 }
 
