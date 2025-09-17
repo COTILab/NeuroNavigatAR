@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="GUI_icon/NeuroNavigatAR_logo.png" alt="NNAR Logo" width="300"/>
+  <img src="assets/icons/NeuroNavigatAR_logo.png" alt="NNAR Logo" width="300"/>
 </p>
 
 # NeuroNavigatAR (NNAR) - Augmented Reality Tool for Real-Time Optode/Electrode Placement
@@ -9,8 +9,6 @@ NeuroNavigatAR (NNAR) is an augmented reality (AR) tool designed to visualize op
 ## Table of Contents
 - [Features](#features)
 - [Installation](#installation)
-  - [Clone the repository](#clone-the-repository)
-  - [Environment Setup](#environment-setup)
 - [Usage](#usage)
 - [Citation](#citation)
 
@@ -21,35 +19,45 @@ NeuroNavigatAR (NNAR) is an augmented reality (AR) tool designed to visualize op
 
 ## Installation
 
-### Clone the repository
+### Option 1: Install from GitHub (Recommended)
 ```bash
-git clone git@github.com:COTILab/NeuroNavigatAR.git
+pip install git+https://github.com/COTILab/NeuroNavigatAR.git
+```
+
+### Option 2: Install from source
+```bash
+git clone https://github.com/COTILab/NeuroNavigatAR.git
 cd NeuroNavigatAR
-```
-
-### Environment Setup
-There are two options for setting up the environment:
-
-#### Option 1: Using Conda (Recommended)
-```bash
-conda env create -f environment.yml
-conda activate nnar
-```
-
-#### Option 2: Using pip
-```bash
-pip install -r requirements.txt
+pip install .
 ```
 
 ## Usage
-You can execute the tool in one of the following ways:
-#### Option 1: Run the Python script
+### GUI application
+After installation, you can run the application in several ways:
+#### Option 1: Command line entry point
 ```bash
-python main.py
+neuronavigatar
 ```
-#### Option 2: Use the Jupyter Notebook
+
+#### Option 2: Python script
 ```bash
-jupyter notebook NNAR_GUI.ipynb
+from nnar import nnar
+import sys
+from PyQt5 import QtWidgets
+
+app = QtWidgets.QApplication(sys.argv)
+window = nnar()
+window.show()
+sys.exit(app.exec_())
+```
+
+## Legacy Usage (for existing users)
+If you have the old setup, you can still use:
+```bash
+# Using Conda environment (if you have environment.yml)
+conda env create -f environment.yml
+conda activate nnar
+python main.py
 ```
 
 ## Citation

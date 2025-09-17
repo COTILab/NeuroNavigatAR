@@ -12,6 +12,8 @@ dependencies = [
     "PyQt5",
     "jdata",
 ]
+[project.scripts]
+neuronavigatar = "nnar:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

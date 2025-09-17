@@ -51,3 +51,16 @@ __all__ = [
     'render_electrode_overlay',
     'process_video_stream',
 ]
+
+def main():
+    """Entry point for command-line usage"""
+    import sys
+    from PyQt5 import QtWidgets
+    
+    app = QtWidgets.QApplication(sys.argv)
+    window = nnar()
+    window.show()
+    sys.exit(app.exec_())
+
+if __name__ == '__main__':
+    main()
