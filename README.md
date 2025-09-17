@@ -45,7 +45,7 @@ pip install -r requirements.txt
 You can execute the tool in one of the following ways:
 #### Option 1: Run the Python script
 ```bash
-python NNAR_GUI.py
+python main.py
 ```
 #### Option 2: Use the Jupyter Notebook
 ```bash
